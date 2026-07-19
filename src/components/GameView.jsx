@@ -30,7 +30,7 @@ function GameView() {
   });
   const ctxRef = useRef(null);
 
-  const soudsRef = useRef({
+  const soundsRef = useRef({
     busHorn: null,
   });
 
@@ -79,8 +79,8 @@ function GameView() {
       y,
     };
 
-    soudsRef.current.busHorn.currentTime=0;
-    soudsRef.current.busHorn.play();
+    soundsRef.current.busHorn.currentTime = 0;
+    soundsRef.current.busHorn.play();
   }
 
   function update() {
@@ -135,6 +135,8 @@ function GameView() {
     const busHorn = new Audio(
       `${import.meta.env.BASE_URL}sounds/busHorn.mp3`
     );
+
+    soundsRef.current.busHorn=busHorn;
 
     let loaded = 0;
 
