@@ -121,8 +121,8 @@ function GameView() {
     imagesRef.current.bus01 = bus01;
 
     //画像の場所はここ。
-    background.src = "/images/background01.png";
-    bus01.src = "/images/bus01.png";
+    background.src = `${import.meta.env.BASE_URL}images/background01.png`;
+    bus01.src = `${import.meta.env.BASE_URL}images/bus01.png`;
 
     let loaded = 0;
 
