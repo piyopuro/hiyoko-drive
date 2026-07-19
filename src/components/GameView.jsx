@@ -30,6 +30,10 @@ function GameView() {
   });
   const ctxRef = useRef(null);
 
+  const soudsRef = useRef({
+    busHorn: null,
+  });
+
   //ウインドウサイズ監視君。変更があったらゲーム画面の大きさを変えてくれるところ。
   useEffect(() => {
     function handleResize() {
@@ -74,6 +78,9 @@ function GameView() {
       x,
       y,
     };
+
+    soudsRef.current.busHorn.currentTime=0;
+    soudsRef.current.busHorn.play();
   }
 
   function update() {
@@ -123,6 +130,11 @@ function GameView() {
     //画像の場所はここ。
     background.src = `${import.meta.env.BASE_URL}images/background01.png`;
     bus01.src = `${import.meta.env.BASE_URL}images/bus01.png`;
+
+    //音も読み込んじゃうよ。
+    const busHorn = new Audio(
+      `${import.meta.env.BASE_URL}sounds/busHorn.mp3`
+    );
 
     let loaded = 0;
 
