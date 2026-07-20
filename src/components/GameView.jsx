@@ -1,4 +1,14 @@
 import { useState, useEffect, useRef } from "react";
+const Direction = {
+  RIGHT: 0,
+  LEFT: 1,
+  FRONT: 2,
+  BACK: 3,
+}
+const Frame = {
+  IDLE: 0,
+  MOVE: 1,
+};
 
 //ゲームの中身を描いてるところだよ。
 function GameView() {
@@ -13,21 +23,29 @@ function GameView() {
     screenSize.height / 1080
   );
 
+  //現在地記録係
   const [bus01Position, setBus01Position] = useState({
     x: 960,
     y: 540,
   });
 
+  //目的地記録係
   const bus01TargetRef = useRef({
     x: 960,
     y: 540,
   });
+
+  //バスの向き記録係
+  const [bus01Direction, setBus01Direction] = useState(Direction.RIGHT);
+  //バスアニメーション指示係
+  const [bus01Frame, setBus01Frame] = useState(Frame.IDLE);
 
   const canvasRef = useRef(null);
   const imagesRef = useRef({
     background: null,
     bus01: null,
   });
+  const animationTimerRef = useRef(0);
   const ctxRef = useRef(null);
 
   const soundsRef = useRef({
@@ -63,10 +81,25 @@ function GameView() {
     ctx.drawImage(background, 0, 0);
 
     //バス1号
+    const frameWidth = 256;   //バス横
+    const frameHeight = 128; //バス縦
+
+    const sx = bus01Frame * frameWidth;       //アニメーション用の場所指定してるよ。
+    const sy = bus01Direction * frameHeight;  //どこ向いてるかな？？によって切り取る場所を変えるよ。
+
     ctx.drawImage(
       bus01,
-      bus01Position.x - 128,
-      bus01Position.y - 64
+
+      sx,
+      sy,
+      frameWidth,
+      frameHeight,
+
+
+      bus01Position.x - frameWidth / 2,
+      bus01Position.y - frameHeight / 2,
+      frameWidth,
+      frameHeight,
     );
   }
 
@@ -79,6 +112,7 @@ function GameView() {
       y,
     };
 
+    //音鳴らしちゃうよ。
     soundsRef.current.busHorn.currentTime = 0;
     soundsRef.current.busHorn.play();
   }
@@ -87,6 +121,26 @@ function GameView() {
     setBus01Position((prev) => {
       const dx = bus01TargetRef.current.x - prev.x;
       const dy = bus01TargetRef.current.y - prev.y;
+
+      if (Math.abs(dx) > Math.abs(dy)) {
+        if (dx > 0) {
+          setBus01Direction(Direction.RIGHT); //右むけ！
+        } else {
+          setBus01Direction(Direction.LEFT);  //左むけ！
+        }
+      } else if (Math.abs(dx) < Math.abs(dy)) {
+        if (dy > 0) {
+          setBus01Direction(Direction.FRONT); //前むけ！
+        } else {
+          setBus01Direction(Direction.BACK);  //後ろむけ！
+        }
+      } else {    //45度ななめ方向の時
+        if (dx > 0) {
+          setBus01Direction(Direction.RIGHT); //右むけ！
+        } else {
+          setBus01Direction(Direction.LEFT);  //左むけ！
+        }
+      }
 
       const distance = Math.hypot(dx, dy);
 
@@ -100,11 +154,23 @@ function GameView() {
       const speed = 5;
 
       if (distance < speed) {
+        setBus01Frame(Frame.IDLE);
         return {
           x: bus01TargetRef.current.x,
           y: bus01TargetRef.current.y,
         };
       };
+
+      //アニメーションタイマーだよ。8フレームごとにアニメーションフレームを変えてね。
+      animationTimerRef.current++;
+      if (animationTimerRef.current >= 8) {
+        setBus01Frame((prev) => {
+          return prev === Frame.IDLE
+            ? Frame.MOVE
+            : Frame.IDLE;
+        });
+        animationTimerRef.current = 0;
+      }
 
       return {
         x: prev.x + vx * speed,
@@ -136,7 +202,7 @@ function GameView() {
       `${import.meta.env.BASE_URL}sounds/busHorn.mp3`
     );
 
-    soundsRef.current.busHorn=busHorn;
+    soundsRef.current.busHorn = busHorn;
 
     let loaded = 0;
 
