@@ -10,6 +10,43 @@ const Frame = {
   MOVE: 1,
 };
 
+const State = {
+  STOP: 0,
+  MOVE: 1,
+};
+
+//のりものたちの基本情報
+const vehicleMaster = {
+  bus: {
+    width: 256,
+    height: 128,
+
+    speed: 5,
+
+    skins: {
+      yellow: "bus01",
+      /* 今後実装予定
+      blue:"bus02",
+      green:"bus03",
+      pink:"bus04",
+      */
+    },
+  },
+
+  /* 今後実装予定
+  bigbus: {
+    width: 256,
+    height: 128,
+
+    speed: 5,
+
+    skins:{
+      normal:"bigbus01",
+    },
+  },    */
+
+};
+
 //ゲームの中身を描いてるところだよ。
 function GameView() {
   const [screenSize, setScreenSize] = useState({
@@ -23,22 +60,37 @@ function GameView() {
     screenSize.height / 1080
   );
 
-  //現在地記録係
-  const [bus01Position, setBus01Position] = useState({
-    x: 960,
-    y: 540,
-  });
+  //のりものたちの状態の記録係
+  const [vehicles, setVehicles] = useState([
+    {
+      id: 1,
 
-  //目的地記録係
-  const bus01TargetRef = useRef({
-    x: 960,
-    y: 540,
-  });
+      type: "bus",
 
-  //バスの向き記録係
-  const [bus01Direction, setBus01Direction] = useState(Direction.RIGHT);
-  //バスアニメーション指示係
-  const [bus01Frame, setBus01Frame] = useState(Frame.IDLE);
+      skin: "yellow",
+
+      position: {
+        x: 960,
+        y: 540,
+      },
+
+      target: {
+        x: 960,
+        y: 540,
+      },
+
+      direction: Direction.RIGHT,
+
+      frame: Frame.IDLE,
+
+      state: State.STOP,
+
+      transform: {
+        scaleX: 1,
+        scaleY: 1,
+      },
+    },
+  ]);
 
   const canvasRef = useRef(null);
   const imagesRef = useRef({
@@ -71,8 +123,13 @@ function GameView() {
 
   //描画担当君。
   function draw(ctx) {
+    const background = imagesRef.current.background;
 
-    const { background, bus01 } = imagesRef.current;
+    const vehicle = vehicles[0];
+    const master = vehicleMaster[vehicle.type];
+
+    const imageName = master.skins[vehicle.skin];
+    const image = imagesRef.current[imageName];
 
     //一回画面をきれいにする。
     ctx.clearRect(0, 0, 1920, 1080);
@@ -80,15 +137,14 @@ function GameView() {
     //背景
     ctx.drawImage(background, 0, 0);
 
-    //バス1号
-    const frameWidth = 256;   //バス横
-    const frameHeight = 128; //バス縦
+    const frameWidth = master.width;
+    const frameHeight = master.height;
 
-    const sx = bus01Frame * frameWidth;       //アニメーション用の場所指定してるよ。
-    const sy = bus01Direction * frameHeight;  //どこ向いてるかな？？によって切り取る場所を変えるよ。
+    const sx = vehicle.frame * frameWidth;       //アニメーション用の場所指定してるよ。
+    const sy = vehicle.direction * frameHeight;  //どこ向いてるかな？？によって切り取る場所を変えるよ。
 
     ctx.drawImage(
-      bus01,
+      image,
 
       sx,
       sy,
@@ -96,8 +152,8 @@ function GameView() {
       frameHeight,
 
 
-      bus01Position.x - frameWidth / 2,
-      bus01Position.y - frameHeight / 2,
+      vehicle.position.x - frameWidth / 2,
+      vehicle.position.y - frameHeight / 2,
       frameWidth,
       frameHeight,
     );
@@ -107,75 +163,122 @@ function GameView() {
     const x = event.nativeEvent.offsetX / scale;
     const y = event.nativeEvent.offsetY / scale;
 
-    bus01TargetRef.current = {
-      x,
-      y,
-    };
+    setVehicles((prevVehicles) => {
+      const newVehicles = [...prevVehicles]; //newVehicle君に今の値をこぴ
+      const vehicle = { ...newVehicles[0] };  //vehicle君（計算係）にそのセットの中のバスのやつ渡してあげて。
+
+      vehicle.target = { x, y };
+      //バスを移動状態にするよ！
+      vehicle.state = State.MOVE;
+
+      newVehicles[0] = vehicle; //newVehicles君に計算した値を渡してあげて。
+      return newVehicles;   //計算し終わった新しいやつ持ってって。
+    });
 
     //音鳴らしちゃうよ。
     soundsRef.current.busHorn.currentTime = 0;
     soundsRef.current.busHorn.play();
+
+  }
+
+  //方向更新係
+  function updateDirection(vehicle, dx, dy) {
+    
+    if (dx === 0 && dy === 0) {
+      return;
+    }
+    
+    if (Math.abs(dx) > Math.abs(dy)) {
+      if (dx > 0) {
+        vehicle.direction = Direction.RIGHT; //右むけ！
+      } else {
+        vehicle.direction = Direction.LEFT;  //左むけ！
+      }
+
+    } else if (Math.abs(dx) < Math.abs(dy)) {
+      if (dy > 0) {
+        vehicle.direction = Direction.FRONT; //前むけ！
+      } else {
+        vehicle.direction = Direction.BACK;  //後ろむけ！
+      }
+
+    } else {    //45度ななめ方向の時
+      if (dx > 0) {
+        vehicle.direction = Direction.RIGHT; //右むけ！
+      } else {
+        vehicle.direction = Direction.LEFT;  //左むけ！
+      }
+    }
+
+  }
+
+  function updateAnimation(vehicle,animationTimerRef){
+    
+    if (vehicle.state === State.STOP) {
+      vehicle.frame = Frame.IDLE;
+      return;
+    }
+
+    //アニメーションタイマーだよ。8フレームごとにアニメーションフレームを変えてね。
+    animationTimerRef.current++;
+
+    if (animationTimerRef.current >= 8) {
+
+      vehicle.frame =
+        vehicle.frame === Frame.IDLE
+          ? Frame.MOVE
+          : Frame.IDLE;
+
+      animationTimerRef.current = 0;
+    }
+  }
+
+  //バスの位置情報更新係
+  function updatePosition(vehicle, master, dx, dy, distance) {
+
+    if (distance === 0) return;
+
+    const vx = dx / distance;
+    const vy = dy / distance;
+
+    //目的地に着いたらこれ
+    if (distance < master.speed) {
+
+      vehicle.state = State.STOP;  //バスの状態は止まってるよ。
+      vehicle.frame = Frame.IDLE;  //バスのアニメーションは待機モード
+
+      vehicle.position = {
+        x: vehicle.target.x,
+        y: vehicle.target.y,
+      };
+
+      return;
+    }
+
+    vehicle.position = {
+      x: vehicle.position.x + vx * master.speed,
+      y: vehicle.position.y + vy * master.speed,
+    };
   }
 
   function update() {
-    setBus01Position((prev) => {
-      const dx = bus01TargetRef.current.x - prev.x;
-      const dy = bus01TargetRef.current.y - prev.y;
+    setVehicles((prevVehicles) => {
+      const newVehicles = [...prevVehicles];
+      const vehicle = { ...newVehicles[0] };
+      const master = vehicleMaster[vehicle.type];
 
-      if (Math.abs(dx) > Math.abs(dy)) {
-        if (dx > 0) {
-          setBus01Direction(Direction.RIGHT); //右むけ！
-        } else {
-          setBus01Direction(Direction.LEFT);  //左むけ！
-        }
-      } else if (Math.abs(dx) < Math.abs(dy)) {
-        if (dy > 0) {
-          setBus01Direction(Direction.FRONT); //前むけ！
-        } else {
-          setBus01Direction(Direction.BACK);  //後ろむけ！
-        }
-      } else {    //45度ななめ方向の時
-        if (dx > 0) {
-          setBus01Direction(Direction.RIGHT); //右むけ！
-        } else {
-          setBus01Direction(Direction.LEFT);  //左むけ！
-        }
-      }
 
+      const dx = vehicle.target.x - vehicle.position.x;
+      const dy = vehicle.target.y - vehicle.position.y;
       const distance = Math.hypot(dx, dy);
 
-      if (distance === 0) {
-        return prev;
-      }
+      updateDirection(vehicle, dx, dy);
+      updateAnimation(vehicle,animationTimerRef);
+      updatePosition(vehicle, master, dx, dy, distance);
 
-      const vx = dx / distance;
-      const vy = dy / distance;
+      newVehicles[0] = vehicle;
 
-      const speed = 5;
-
-      if (distance < speed) {
-        setBus01Frame(Frame.IDLE);
-        return {
-          x: bus01TargetRef.current.x,
-          y: bus01TargetRef.current.y,
-        };
-      };
-
-      //アニメーションタイマーだよ。8フレームごとにアニメーションフレームを変えてね。
-      animationTimerRef.current++;
-      if (animationTimerRef.current >= 8) {
-        setBus01Frame((prev) => {
-          return prev === Frame.IDLE
-            ? Frame.MOVE
-            : Frame.IDLE;
-        });
-        animationTimerRef.current = 0;
-      }
-
-      return {
-        x: prev.x + vx * speed,
-        y: prev.y + vy * speed,
-      };
+      return newVehicles;
     });
   }
 
@@ -226,7 +329,7 @@ function GameView() {
 
     draw(ctxRef.current);
 
-  }, [bus01Position]);
+  }, [vehicles]);
 
   useEffect(() => {
     const timer = setInterval(() => {
