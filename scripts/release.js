@@ -1,27 +1,44 @@
 import { execSync } from "node:child_process";
+import readline from "node:readline";
 import { VERSION } from "../src/version.js";
 
 console.log(`ひよこどらいぶ Ver${VERSION} をリリースします！`);
 
-try{
-    execSync("git add .",{stdio:"inherit"});
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout
+});
 
-    execSync(`git commit -m "Release v${VERSION}"`,{
-        stdio:"inherit",
+try {
+  execSync(`git rev-parse v${VERSION}`, {
+      stdio: "ignore",
+  });
+
+  console.log(`v${VERSION} は既にリリースされています！`);
+  process.exit(1);
+
+} catch {
+
+  rl.question(
+    `コミットメッセージを入力してください\n（空欄なら "Release v${VERSION}"）\n> `,
+    (answer) => {
+
+    const message =
+      answer.trim() === ""
+        ? `Release v${VERSION}`
+        : answer;
+  
+    execSync("git add .", { stdio: "inherit" });
+    execSync(`git commit -m "${message}"`, {
+      stdio: "inherit",
     });
-}catch{
-    console.log("コミットする変更はありません。")
-}
-
-try{
-    
     execSync(`git tag v${VERSION}`);
+    execSync("git push", { stdio: "inherit" });
+    execSync("git push --tags", { stdio: "inherit" });
 
-}catch{
-    console.log("タグは既に存在します。");
+    console.log("リリース完了！");
+    
+    rl.close();
+  });
+
 }
-
-execSync("git push",{stdio:"inherit"});
-execSync("git push --tags",{stdio:"inherit"});
-
-console.log("リリース完了！");
