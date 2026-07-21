@@ -29,7 +29,7 @@ try {
         : answer;
   
     execSync("git add .", { stdio: "inherit" });
-    execSync(`git commit -m "${message}"`, {
+    execSync(`git commit -m "v${VERSION} ${message}"`, {
       stdio: "inherit",
     });
     execSync(`git tag v${VERSION}`);
