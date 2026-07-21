@@ -52,15 +52,15 @@ const vehicleMaster = {
 //動きセット
 const effectMaster = {
   start: {
-    frameInterval: 5,
-    scaleX: [0.85, 0.75, 0.70, 0.75, 0.85, 1.00],
-    scaleY: [1.15, 1.25, 1.30, 1.25, 1.15, 1.00],
+    frameInterval: 15,
+    scaleX: [0.91, 0.85, 0.80, 0.76, 0.73, 0.71, 0.70, 0.71, 0.73, 0.76, 0.80, 0.85, 0.91, 1.00],
+    scaleY: [1.09, 1.15, 1.20, 1.24, 1.27, 1.29, 1.30, 1.29, 1.27, 1.24, 1.20, 1.15, 1.09, 1.00],
   },
 
   stop: {
-    frameInterval: 5,
-    scaleX: [1.15, 1.25, 1.30, 1.25, 1.15, 1.00],
-    scaleY: [0.85, 0.75, 0.70, 0.75, 0.85, 1.00],
+    frameInterval: 15,
+    scaleX: [1.09, 1.15, 1.20, 1.24, 1.27, 1.29, 1.30, 1.29, 1.27, 1.24, 1.20, 1.15, 1.09, 1.00],
+    scaleY: [0.91, 0.85, 0.80, 0.76, 0.73, 0.71, 0.70, 0.71, 0.73, 0.76, 0.80, 0.85, 0.91, 1.00],
   },
 };
 
@@ -180,8 +180,8 @@ function GameView() {
       frameHeight,
 
 
-      vehicle.position.x - frameWidth / 2,
-      vehicle.position.y - frameHeight / 2,
+      vehicle.position.x - drawWidth / 2,
+      vehicle.position.y - drawHeight / 2,
       drawWidth,
       drawHeight,
     );
@@ -295,11 +295,17 @@ function GameView() {
 
   //ぽよん開始合図係
   function startEffect(vehicle, type) {
+    const effect = effectMaster[type];
+
     vehicle.effect = {
       type,
       frame: 0,
       timer: 0,
     };
+
+    //開始直後に1コマ目！
+    vehicle.transform.scaleX = effect.scaleX[0];
+    vehicle.transform.scaleY = effect.scaleY[0];
   }
 
   //ぽよん係
@@ -322,8 +328,8 @@ function GameView() {
 
     //ぽよん終了
     if (vehicle.effect.frame >= effect.scaleX.length) {
-      vehicle.transform.scaleX=1;
-      vehicle.transform.scaleY=1;
+      vehicle.transform.scaleX = 1;
+      vehicle.transform.scaleY = 1;
 
       vehicle.effect = {
         type: null,
@@ -331,7 +337,7 @@ function GameView() {
         timer: 0,
       };
 
-      vehicle.effect.type = null;
+      return;
     }
 
   }
