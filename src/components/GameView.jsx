@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { VERSION } from "../version";
+
 const Direction = {
   RIGHT: 0,
   LEFT: 1,
@@ -49,6 +51,7 @@ const vehicleMaster = {
 
 //ゲームの中身を描いてるところだよ。
 function GameView() {
+
   const [screenSize, setScreenSize] = useState({
     width: window.innerWidth,
     height: window.innerHeight
@@ -183,11 +186,11 @@ function GameView() {
 
   //方向更新係
   function updateDirection(vehicle, dx, dy) {
-    
+
     if (dx === 0 && dy === 0) {
       return;
     }
-    
+
     if (Math.abs(dx) > Math.abs(dy)) {
       if (dx > 0) {
         vehicle.direction = Direction.RIGHT; //右むけ！
@@ -212,8 +215,8 @@ function GameView() {
 
   }
 
-  function updateAnimation(vehicle,animationTimerRef){
-    
+  function updateAnimation(vehicle, animationTimerRef) {
+
     if (vehicle.state === State.STOP) {
       vehicle.frame = Frame.IDLE;
       return;
@@ -273,7 +276,7 @@ function GameView() {
       const distance = Math.hypot(dx, dy);
 
       updateDirection(vehicle, dx, dy);
-      updateAnimation(vehicle,animationTimerRef);
+      updateAnimation(vehicle, animationTimerRef);
       updatePosition(vehicle, master, dx, dy, distance);
 
       newVehicles[0] = vehicle;
@@ -344,17 +347,27 @@ function GameView() {
   //今まで計算したやつ、ここで出てくるよ～。
   return (
     <div className="viewport">
-      <canvas
-        className="gameCanvas"
-        ref={canvasRef}
-        width={1920}
-        height={1080}
-        style={{
-          width: `${1920 * scale}px`,
-          height: `${1080 * scale}px`
-        }}
-        onClick={handleClick}
-      />
+
+      <div className="gameArea">
+
+        <canvas
+          className="gameCanvas"
+          ref={canvasRef}
+          width={1920}
+          height={1080}
+          style={{
+            width: `${1920 * scale}px`,
+            height: `${1080 * scale}px`
+          }}
+          onClick={handleClick}
+        />
+
+        <div className="version">
+          Ver {VERSION}
+        </div>
+
+      </div>
+
     </div>
   );
 

@@ -7,6 +7,8 @@ body,
 }
 
 .viewport {
+  position: relative;
+
   width: 100vw;
   height: 100vh;
 
@@ -17,6 +19,10 @@ body,
   overflow: hidden;
 
   background: #222;
+}
+
+.gameArea{
+  position: relative;
 }
 
 .gameCanvas {
@@ -32,6 +38,21 @@ body,
   height: 1080px;
 
   transform-origin: center center;
+}
+
+.version{
+  position:absolute;
+
+  right: 12px;
+  bottom: 8px;
+
+  color: white;
+  font-size: 14px;
+
+  opacity: 0.4;
+
+  user-select: none;
+  pointer-events: none;
 }
 
 .background {
