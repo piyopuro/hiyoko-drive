@@ -18,8 +18,8 @@ const State = {
 };
 
 const Effect = {
-  DURATION: 500,
-  AMOUNT: 0.3,
+  DURATION: 300,
+  AMOUNT: 0.2,
 }
 
 //のりものたちの基本情報
@@ -32,11 +32,9 @@ const vehicleMaster = {
 
     skins: {
       yellow: "bus01",
-      /* 今後実装予定
-      blue:"bus02",
-      green:"bus03",
-      pink:"bus04",
-      */
+      blue: "bus02",
+      green: "bus03",
+      pink: "bus04",
     },
   },
 
@@ -53,6 +51,9 @@ const vehicleMaster = {
   },    */
 
 };
+
+//インク池の情報たち
+
 
 /*動きセット
 const effectMaster = {
@@ -90,7 +91,6 @@ function GameView() {
       id: 1,
 
       type: "bus",
-
       skin: "yellow",
 
       position: {
@@ -104,9 +104,7 @@ function GameView() {
       },
 
       direction: Direction.RIGHT,
-
       frame: Frame.IDLE,
-
       state: State.STOP,
 
       transform: {
@@ -119,7 +117,6 @@ function GameView() {
         startTime: 0,
         duration: 0,
       },
-
     },
   ]);
 
@@ -127,6 +124,9 @@ function GameView() {
   const imagesRef = useRef({
     background: null,
     bus01: null,
+    bus02: null,
+    bus03: null,
+    bus04: null,
   });
   const animationTimerRef = useRef(0);
   const ctxRef = useRef(null);
@@ -151,22 +151,12 @@ function GameView() {
     };
   }, []);
 
-
-  //描画担当君。
-  function draw(ctx) {
-    const background = imagesRef.current.background;
-
-    const vehicle = vehicles[0];
+  //のりもの描画係
+  function drawVehicle(ctx, vehicle) {
     const master = vehicleMaster[vehicle.type];
 
-    const imageName = master.skins[vehicle.skin];
+    const imageName = master.skins[vehicle.skin]; //何色？
     const image = imagesRef.current[imageName];
-
-    //一回画面をきれいにする。
-    ctx.clearRect(0, 0, 1920, 1080);
-
-    //背景
-    ctx.drawImage(background, 0, 0);
 
     const frameWidth = master.width;
     const frameHeight = master.height;
@@ -185,12 +175,26 @@ function GameView() {
       frameWidth,
       frameHeight,
 
-
       vehicle.position.x - drawWidth / 2,
       vehicle.position.y - drawHeight / 2,
       drawWidth,
       drawHeight,
     );
+  }
+
+  //描画担当本部
+  function draw(ctx) {
+    const background = imagesRef.current.background;
+
+    //一回画面をきれいにする。
+    ctx.clearRect(0, 0, 1920, 1080);
+
+    //背景描いてる部署
+    ctx.drawImage(background, 0, 0);
+
+    //動かすのりもの描画係
+    const vehicle = vehicles[0];
+    drawVehicle(ctx, vehicle);
   }
 
   function handleClick(event) {
@@ -206,6 +210,13 @@ function GameView() {
       vehicle.state = State.MOVE;
       //ぽよん準備
       startEffect(vehicle, "start");
+
+      //色変更てすと！！！
+      if (vehicle.skin === "yellow") {
+        vehicle.skin = "blue";
+      } else {
+        vehicle.skin = "yellow";
+      }
 
       newVehicles[0] = vehicle; //newVehicles君に計算した値を渡してあげて。
       return newVehicles;   //計算し終わった新しいやつ持ってって。
@@ -248,6 +259,27 @@ function GameView() {
 
   }
 
+
+  //色変更係
+  function changeVehicleSkin(newSkin) {
+    setVehicles((prevVehicles) => {
+      const newVehicles = [...prevVehicles];
+
+      const vehicle = {
+        ...newVehicles[0],
+        position: { ...newVehicles[0].position },
+        target: { ...newVehicles[0].target },
+        transform: { ...newVehicles[0].transform },
+        effect: { ...newVehicles[0].effect },
+      };
+
+      vehicle.skin = newSkin;
+      newVehicles[0] = vehicle;
+      return newVehicles;
+    });
+  }
+
+  //走行アニメーション係
   function updateAnimation(vehicle, animationTimerRef) {
 
     if (vehicle.state === State.STOP) {
@@ -269,7 +301,7 @@ function GameView() {
     }
   }
 
-  //バスの位置情報更新係
+  //のりものの位置情報更新係
   function updatePosition(vehicle, master, dx, dy, distance) {
 
     if (vehicle.state === State.STOP) return;
@@ -383,13 +415,22 @@ function GameView() {
     //画像はここから。
     const background = new Image();
     const bus01 = new Image();
+    const bus02 = new Image();
+    const bus03 = new Image();
+    const bus04 = new Image();
 
     imagesRef.current.background = background;
     imagesRef.current.bus01 = bus01;
+    imagesRef.current.bus02 = bus02;
+    imagesRef.current.bus03 = bus03;
+    imagesRef.current.bus04 = bus04;
 
     //画像の場所はここ。
     background.src = `${import.meta.env.BASE_URL}images/background01.png`;
     bus01.src = `${import.meta.env.BASE_URL}images/bus01.png`;
+    bus02.src = `${import.meta.env.BASE_URL}images/bus02.png`;
+    bus03.src = `${import.meta.env.BASE_URL}images/bus03.png`;
+    bus04.src = `${import.meta.env.BASE_URL}images/bus04.png`;
 
     //音も読み込んじゃうよ。
     const busHorn = new Audio(
@@ -404,7 +445,7 @@ function GameView() {
     function imageLoaded() {
       loaded++;
 
-      if (loaded === 2) {
+      if (loaded === 5) {
         draw(ctx);
       }
     }
@@ -412,6 +453,9 @@ function GameView() {
     //読み込みが終わったらこれ。
     background.onload = imageLoaded;
     bus01.onload = imageLoaded;
+    bus02.onload = imageLoaded;
+    bus03.onload = imageLoaded;
+    bus04.onload = imageLoaded;
 
   }, []);
 
