@@ -53,7 +53,40 @@ const vehicleMaster = {
 };
 
 //インク池の情報たち
-
+const colorPuddles = [
+  {
+    id: 1,
+    x: 500,
+    y: 400,
+    radius: 80,
+    skin: "yellow",
+    imageName: "puddle01",
+  },
+  {
+    id: 2,
+    x: 1400,
+    y: 700,
+    radius: 80,
+    skin: "blue",
+    imageName: "puddle02",
+  },
+  {
+    id: 3,
+    x: 100,
+    y: 1000,
+    radius: 80,
+    skin: "green",
+    imageName: "puddle03",
+  },
+  {
+    id: 4,
+    x: 1700,
+    y: 200,
+    radius: 80,
+    skin: "pink",
+    imageName: "puddle04",
+  },
+];
 
 /*動きセット
 const effectMaster = {
@@ -127,6 +160,10 @@ function GameView() {
     bus02: null,
     bus03: null,
     bus04: null,
+    puddle01: null,
+    puddle02: null,
+    puddle03: null,
+    puddle04: null,
   });
   const animationTimerRef = useRef(0);
   const ctxRef = useRef(null);
@@ -182,6 +219,21 @@ function GameView() {
     );
   }
 
+  //インク池描画係
+  function drawColorPuddle(ctx, puddle) {
+    const image = imagesRef.current[puddle.imageName];
+
+    const size = puddle.radius * 2;
+
+    ctx.drawImage(
+      image,
+      puddle.x - size / 2,
+      puddle.y - size / 2,
+      size,
+      size,
+    );
+  }
+
   //描画担当本部
   function draw(ctx) {
     const background = imagesRef.current.background;
@@ -191,6 +243,11 @@ function GameView() {
 
     //背景描いてる部署
     ctx.drawImage(background, 0, 0);
+
+    //インク池描画係
+    for (const puddle of colorPuddles) {
+      drawColorPuddle(ctx, puddle);
+    }
 
     //動かすのりもの描画係
     const vehicle = vehicles[0];
@@ -210,13 +267,6 @@ function GameView() {
       vehicle.state = State.MOVE;
       //ぽよん準備
       startEffect(vehicle, "start");
-
-      //色変更てすと！！！
-      if (vehicle.skin === "yellow") {
-        vehicle.skin = "blue";
-      } else {
-        vehicle.skin = "yellow";
-      }
 
       newVehicles[0] = vehicle; //newVehicles君に計算した値を渡してあげて。
       return newVehicles;   //計算し終わった新しいやつ持ってって。
@@ -376,6 +426,20 @@ function GameView() {
 
   }
 
+  //インク池警察
+  function updateColoPuddleCollision(vehicle) {
+    for (const puddle of colorPuddles) {
+      const dx = vehicle.position.x - puddle.x;
+      const dy = vehicle.position.y - puddle.y;
+
+      const distance = Math.hypot(dx, dy);
+
+      if (distance < puddle.radius) {
+        vehicle.skin = puddle.skin;
+      }
+    }
+  }
+
   //現場監督
   function update(now) {
     setVehicles((prevVehicles) => {
@@ -397,6 +461,7 @@ function GameView() {
       updateDirection(vehicle, dx, dy);
       updateAnimation(vehicle, animationTimerRef);
       updatePosition(vehicle, master, dx, dy, distance);
+      updateColoPuddleCollision(vehicle);
       updateEffect(vehicle, now);
 
       newVehicles[0] = vehicle;
@@ -418,12 +483,20 @@ function GameView() {
     const bus02 = new Image();
     const bus03 = new Image();
     const bus04 = new Image();
+    const puddle01 = new Image();
+    const puddle02 = new Image();
+    const puddle03 = new Image();
+    const puddle04 = new Image();
 
     imagesRef.current.background = background;
     imagesRef.current.bus01 = bus01;
     imagesRef.current.bus02 = bus02;
     imagesRef.current.bus03 = bus03;
     imagesRef.current.bus04 = bus04;
+    imagesRef.current.puddle01 = puddle01;
+    imagesRef.current.puddle02 = puddle02;
+    imagesRef.current.puddle03 = puddle03;
+    imagesRef.current.puddle04 = puddle04;
 
     //画像の場所はここ。
     background.src = `${import.meta.env.BASE_URL}images/background01.png`;
@@ -431,6 +504,10 @@ function GameView() {
     bus02.src = `${import.meta.env.BASE_URL}images/bus02.png`;
     bus03.src = `${import.meta.env.BASE_URL}images/bus03.png`;
     bus04.src = `${import.meta.env.BASE_URL}images/bus04.png`;
+    puddle01.src = `${import.meta.env.BASE_URL}images/puddle01.png`;
+    puddle02.src = `${import.meta.env.BASE_URL}images/puddle02.png`;
+    puddle03.src = `${import.meta.env.BASE_URL}images/puddle03.png`;
+    puddle04.src = `${import.meta.env.BASE_URL}images/puddle04.png`;
 
     //音も読み込んじゃうよ。
     const busHorn = new Audio(
@@ -445,7 +522,7 @@ function GameView() {
     function imageLoaded() {
       loaded++;
 
-      if (loaded === 5) {
+      if (loaded === 9) {
         draw(ctx);
       }
     }
@@ -456,6 +533,10 @@ function GameView() {
     bus02.onload = imageLoaded;
     bus03.onload = imageLoaded;
     bus04.onload = imageLoaded;
+    puddle01.onload = imageLoaded;
+    puddle02.onload = imageLoaded;
+    puddle03.onload = imageLoaded;
+    puddle04.onload = imageLoaded;
 
   }, []);
 
