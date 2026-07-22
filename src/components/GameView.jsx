@@ -17,6 +17,11 @@ const State = {
   MOVE: 1,
 };
 
+const Effect = {
+  DURATION: 500,
+  AMOUNT: 0.3,
+}
+
 //のりものたちの基本情報
 const vehicleMaster = {
   bus: {
@@ -49,7 +54,7 @@ const vehicleMaster = {
 
 };
 
-//動きセット
+/*動きセット
 const effectMaster = {
   start: {
     frameInterval: 15,
@@ -63,6 +68,7 @@ const effectMaster = {
     scaleY: [0.92, 0.86, 0.81, 0.77, 0.74, 0.72, 0.71, 0.72, 0.74, 0.77, 0.81, 0.86, 0.92, 0.96, 0.99, 1.00,],
   },
 };
+*/
 
 //ゲームの中身を描いてるところだよ。
 function GameView() {
@@ -110,8 +116,8 @@ function GameView() {
 
       effect: {
         type: null, //発進ぽよん→start 停止ぽよん→stop
-        frame: 0,
-        timer: 0,
+        startTime: 0,
+        duration: 0,
       },
 
     },
@@ -295,58 +301,60 @@ function GameView() {
 
   //ぽよん開始合図係
   function startEffect(vehicle, type) {
-    const effect = effectMaster[type];
-
     vehicle.effect = {
       type,
-      frame: 0,
-      timer: 0,
+      startTime: performance.now(),
+      duration: Effect.DURATION,
     };
 
-    //開始直後に1コマ目！
-    vehicle.transform.scaleX = effect.scaleX[0];
-    vehicle.transform.scaleY = effect.scaleY[0];
+    //開始直後は通常サイズ
+    vehicle.transform.scaleX = 1;
+    vehicle.transform.scaleY = 1;
   }
 
   //ぽよん係
-  function updateEffect(vehicle) {
-    const type = vehicle.effect.type;
+  function updateEffect(vehicle, now) {
+
+    const effect = vehicle.effect;
 
     //ぽよん中ですか？
-    if (type === null) return;
+    if (effect.type === null) return;
 
-    const effect = effectMaster[type];
-    const frame = vehicle.effect.frame;
+    const elapsed = now - effect.startTime;       //経過時間（ミリ秒）
+    const t = Math.min(elapsed / effect.duration, 1);   //ぽよん進捗
+    const amount = 4 * t * (1 - t);     //放物線0～1
 
-    vehicle.transform.scaleX = effect.scaleX[frame];
-    vehicle.transform.scaleY = effect.scaleY[frame];
-
-    vehicle.effect.timer++;
-    if (vehicle.effect.timer < effect.frameInterval) return;
-
-    vehicle.effect.frame++;
+    if (effect.type === "start") {
+      vehicle.transform.scaleX = 1 + amount * Effect.AMOUNT;
+      vehicle.transform.scaleY = 1 - amount * Effect.AMOUNT;
+    }
+    if (effect.type === "stop") {
+      vehicle.transform.scaleX = 1 - amount * Effect.AMOUNT;
+      vehicle.transform.scaleY = 1 + amount * Effect.AMOUNT;
+    }
 
     //ぽよん終了
-    if (vehicle.effect.frame >= effect.scaleX.length) {
+    if (t >= 1) {
       vehicle.transform.scaleX = 1;
       vehicle.transform.scaleY = 1;
-
-      vehicle.effect = {
-        type: null,
-        frame: 0,
-        timer: 0,
-      };
-
-      return;
+      effect.type = null;
     }
+
+    return;
 
   }
 
   //現場監督
-  function update() {
+  function update(now) {
     setVehicles((prevVehicles) => {
       const newVehicles = [...prevVehicles];
-      const vehicle = { ...newVehicles[0] };
+      const vehicle = { //念のためぜーんぶコピーするよ！
+        ...newVehicles[0],
+        position: { ...newVehicles[0].position },
+        target: { ...newVehicles[0].target },
+        transform: { ...newVehicles[0].transform },
+        effect: { ...newVehicles[0].effect },
+      };
       const master = vehicleMaster[vehicle.type];
 
 
@@ -357,7 +365,7 @@ function GameView() {
       updateDirection(vehicle, dx, dy);
       updateAnimation(vehicle, animationTimerRef);
       updatePosition(vehicle, master, dx, dy, distance);
-      updateEffect(vehicle);
+      updateEffect(vehicle, now);
 
       newVehicles[0] = vehicle;
 
@@ -414,14 +422,21 @@ function GameView() {
 
   }, [vehicles]);
 
+
   useEffect(() => {
-    const timer = setInterval(() => {
+    let animationFrameId;
 
-      update();
+    function gameLoop(now) {
+      update(now);
 
-    }, 16);
+      animationFrameId = requestAnimationFrame(gameLoop);
+    }
 
-    return () => clearInterval(timer);
+    animationFrameId = requestAnimationFrame(gameLoop);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
   }, []);
 
   //今まで計算したやつ、ここで出てくるよ～。
