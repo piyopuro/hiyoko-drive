@@ -30,6 +30,8 @@ const vehicleMaster = {
 
     speed: 5,
 
+    canChangeColor: true,
+
     defaultSkin: "yellow",
     skins: {
       yellow: "bus01",
@@ -37,6 +39,8 @@ const vehicleMaster = {
       green: "bus03",
       pink: "bus04",
     },
+
+    actionSound: "busHorn",
   },
 
   ambulance: {
@@ -45,10 +49,14 @@ const vehicleMaster = {
 
     speed: 6,
 
+    canChangeColor: false,
     defaultSkin: "normal",
     skins: {
       normal: "ambulance01",
     },
+
+    actionSound: "ambulanceSiren",
+
   },
 
   /* 今後実装予定
@@ -111,6 +119,21 @@ const VehicleMenu = {
 
   OPEN_DURATION: 300,
 }
+//メニューのおくるまです。
+const vehicleMenuItems = [
+  {
+    type: "bus",
+    skin: "yellow",
+    offsetX: 300,
+    offsetY: 300,
+  },
+  {
+    type: "ambulance",
+    skin: "normal",
+    offsetX: 700,
+    offsetY: 300,
+  },
+]
 
 /*動きセット
 const effectMaster = {
@@ -127,6 +150,38 @@ const effectMaster = {
   },
 };
 */
+
+/*
+
+//のりものオブジェクトお渡し係
+function createVehicle({
+  type,
+  skin,
+  x,
+  y,
+  direction=0,
+}){
+  const master= vehicleMaster[type];
+
+  return{
+    type,
+    skin: skin ?? master.defaultSkin,
+
+    frame:0,
+    direction,
+    position:{x,y,},
+    transform:{
+      scaleX=1,
+      scaleY=1,
+    },
+
+    effect:{
+      popFrame:0,
+    },
+  };
+}
+*/
+
 
 //ゲームの中身を描いてるところだよ。
 function GameView() {
@@ -199,6 +254,7 @@ function GameView() {
 
   const soundsRef = useRef({
     busHorn: null,
+    ambulanceSiren: null,
   });
 
   const vehicleMenuRef = useRef({
@@ -290,6 +346,12 @@ function GameView() {
       VehicleMenu.PANEL_HEIGHT
     );
 
+    const menuVehicles = getVehicleMenuVehicles();
+
+    for (const vehicle of menuVehicles) {
+      drawMenuVehicle(ctx, vehicle,);
+    }
+
     ctx.restore();
   }
 
@@ -331,6 +393,43 @@ function GameView() {
 
   }
 
+  //メニューの車描画係
+  function drawMenuVehicle(ctx, menuVehicle) {
+    const master = vehicleMaster[menuVehicle.type];
+
+    const imageKey =
+      master.skins[menuVehicle.skin];
+
+    const image = imagesRef.current[imageKey];
+
+    if (!image) {
+      return;
+    }
+
+    const frameWidth = master.width;
+    const frameHeight = master.height;
+
+    const frame = Frame.IDLE;
+    const direction = Direction.RIGHT;
+
+    const sx = frame * frameWidth;
+    const sy = frame * frameHeight;
+
+    ctx.drawImage(
+      image,
+
+      sx,
+      sy,
+      frameWidth,
+      frameHeight,
+
+      menuVehicle.x - frameWidth / 2,
+      menuVehicle.y - frameHeight / 2,
+      frameWidth,
+      frameHeight
+    );
+  }
+
   //描画担当本部
   function draw(ctx) {
     const background = imagesRef.current.background;
@@ -358,11 +457,40 @@ function GameView() {
     const x = event.nativeEvent.offsetX / scale;
     const y = event.nativeEvent.offsetY / scale;
 
-    const tabRect= getVehicleMenuTabRect();
+    const tabRect = getVehicleMenuTabRect();  //付箋おさわりチェック
 
-    if (isPointInsideRect(x, y, tabRect)) {
+    if (isPointInsideRect(x, y, tabRect)) {   //触ってたらメニューをだして！車は動かさないよ。
       toggleVehicleMenu(performance.now());
       return;
+    }
+
+    const menu = vehicleMenuRef.current;
+
+    const menuIsVisible =
+      menu.isOpen || menu.progress > 0; //メニュー見えてるかな？
+
+    if (menuIsVisible) {
+      const menuVehicles = getVehicleMenuVehicles();
+
+      for (const menuVehicle of menuVehicles) {
+        const master = vehicleMaster[menuVehicle.type];
+
+        //おくるま選択用当たり判定をご用意。
+        const vehicleRect = {
+          x: menuVehicle.x - master.width / 2,
+          y: menuVehicle.y - master.height / 2,
+          width: master.width,
+          height: master.height,
+        };
+
+        if (isPointInsideRect(x, y, vehicleRect)) {
+          changeVehicleType(menuVehicle.type);
+          return;
+        }
+      }
+
+      return; //メニューが見えてたら車を動かす前に離脱！
+
     }
 
     setVehicles((prevVehicles) => {
@@ -380,8 +508,12 @@ function GameView() {
     });
 
     //音鳴らしちゃうよ。
-    soundsRef.current.busHorn.currentTime = 0;
-    soundsRef.current.busHorn.play();
+    const vehicle = vehicles[0];
+    const master = vehicleMaster[vehicle.type];
+    const sound = soundsRef.current[master.actionSound];
+
+    sound.currentTime = 0;
+    sound.play();
 
   }
 
@@ -495,8 +627,8 @@ function GameView() {
   }
 
   //メニュー付箋おさわりチェック
-  function isPointInsideRect(x,y,rect){
-    return(
+  function isPointInsideRect(x, y, rect) {
+    return (
       x >= rect.x &&
       x <= rect.x + rect.width &&
       y >= rect.y &&
@@ -512,6 +644,21 @@ function GameView() {
     menu.startProgress = menu.progress;
     menu.targetProgress = menu.isOpen ? 0 : 1;
     menu.isOpen = !menu.isOpen;
+  }
+
+  function getVehicleMenuVehicles() {
+    const menu = vehicleMenuRef.current;
+
+    const panelX =
+      1920 - VehicleMenu.PANEL_WIDTH * menu.progress;
+
+    const panelY = 70;
+
+    return vehicleMenuItems.map((item) => ({
+      ...item,
+      x: panelX + item.offsetX,
+      y: panelY + item.offsetY,
+    }));
   }
 
   //走行アニメーション係
@@ -613,13 +760,17 @@ function GameView() {
 
   //インク池警察
   function updateColoPuddleCollision(vehicle) {
+    const master = vehicleMaster[vehicle.type];
+
+    if (!master.canChangeColor) return;  //色変可能なくるまかどうかチェック！
+
     for (const puddle of colorPuddles) {
       const dx = vehicle.position.x - puddle.x;
       const dy = vehicle.position.y - puddle.y;
 
-      const distance = Math.hypot(dx, dy);
+      const distance = Math.hypot(dx, dy);  //インク池と車の距離
 
-      if (distance < puddle.radius) {
+      if (distance < puddle.radius) { //インク池に触ったかな？
         vehicle.skin = puddle.skin;
       }
     }
@@ -727,8 +878,13 @@ function GameView() {
     const busHorn = new Audio(
       `${import.meta.env.BASE_URL}sounds/busHorn.mp3`
     );
+    const ambulanceSiren = new Audio(
+      `${import.meta.env.BASE_URL}sounds/ambulanceSiren.mp3`
+    );
+
 
     soundsRef.current.busHorn = busHorn;
+    soundsRef.current.ambulanceSiren = ambulanceSiren;
 
     let loaded = 0;
 
