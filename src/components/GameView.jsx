@@ -30,11 +30,24 @@ const vehicleMaster = {
 
     speed: 5,
 
+    defaultSkin: "yellow",
     skins: {
       yellow: "bus01",
       blue: "bus02",
       green: "bus03",
       pink: "bus04",
+    },
+  },
+
+  ambulance: {
+    width: 192,
+    height: 128,
+
+    speed: 6,
+
+    defaultSkin: "normal",
+    skins: {
+      normal: "ambulance01",
     },
   },
 
@@ -88,6 +101,17 @@ const colorPuddles = [
   },
 ];
 
+//こちらがおくるまのメニューでございます。
+const VehicleMenu = {
+  TAB_WIDTH: 180,
+  TAB_HEIGHT: 140,
+
+  PANEL_WIDTH: 1700,
+  PANEL_HEIGHT: 940,
+
+  OPEN_DURATION: 300,
+}
+
 /*動きセット
 const effectMaster = {
   start: {
@@ -123,8 +147,8 @@ function GameView() {
     {
       id: 1,
 
-      type: "bus",
-      skin: "yellow",
+      type: "ambulance",
+      skin: "normal",
 
       position: {
         x: 960,
@@ -151,15 +175,20 @@ function GameView() {
         duration: 0,
       },
     },
+
+
   ]);
 
   const canvasRef = useRef(null);
   const imagesRef = useRef({
     background: null,
+
     bus01: null,
     bus02: null,
     bus03: null,
     bus04: null,
+    ambulance: null,
+
     puddle01: null,
     puddle02: null,
     puddle03: null,
@@ -170,6 +199,16 @@ function GameView() {
 
   const soundsRef = useRef({
     busHorn: null,
+  });
+
+  const vehicleMenuRef = useRef({
+    isOpen: false,
+
+    startTime: 0,
+    startProgress: 0,
+    targetProgress: 0,
+
+    progress: 0,  //閉じてる？開いてる？
   });
 
   //ウインドウサイズ監視君。変更があったらゲーム画面の大きさを変えてくれるところ。
@@ -234,6 +273,64 @@ function GameView() {
     );
   }
 
+  //メニュー描画係
+  function drawVehicleMenu(ctx) {
+    const menu = vehicleMenuRef.current;
+
+    const panelX =
+      1920 - VehicleMenu.PANEL_WIDTH * menu.progress;
+
+    const panelY = 70;
+
+    ctx.fillStyle = "#eeeeee";
+    ctx.fillRect(
+      panelX,
+      panelY,
+      VehicleMenu.PANEL_WIDTH,
+      VehicleMenu.PANEL_HEIGHT
+    );
+
+    ctx.restore();
+  }
+
+  //メニュー付箋描画係
+  function drawVehicleMenuTab(ctx) {
+    const menu = vehicleMenuRef.current;
+
+    const closedX =
+      1920 - VehicleMenu.TAB_WIDTH;
+    const openedX =
+      1920 - VehicleMenu.PANEL_WIDTH - VehicleMenu.TAB_WIDTH;
+
+    const tabX =
+      closedX + (openedX - closedX) * menu.progress;
+    const tabY = 70;
+
+    ctx.save();
+
+    ctx.fillStyle = "#ff7800";
+    ctx.fillRect(
+      tabX, tabY,
+      VehicleMenu.TAB_WIDTH, VehicleMenu.TAB_HEIGHT
+    );
+
+    // 仮の車マーク
+    ctx.fillStyle = "#ffffff";
+
+    ctx.beginPath();
+    ctx.roundRect(
+      tabX + 35,
+      tabY + 45,
+      110,
+      55,
+      24
+    );
+    ctx.fill();
+
+    ctx.restore();
+
+  }
+
   //描画担当本部
   function draw(ctx) {
     const background = imagesRef.current.background;
@@ -252,11 +349,21 @@ function GameView() {
     //動かすのりもの描画係
     const vehicle = vehicles[0];
     drawVehicle(ctx, vehicle);
+
+    drawVehicleMenu(ctx);
+    drawVehicleMenuTab(ctx);
   }
 
   function handleClick(event) {
     const x = event.nativeEvent.offsetX / scale;
     const y = event.nativeEvent.offsetY / scale;
+
+    const tabRect= getVehicleMenuTabRect();
+
+    if (isPointInsideRect(x, y, tabRect)) {
+      toggleVehicleMenu(performance.now());
+      return;
+    }
 
     setVehicles((prevVehicles) => {
       const newVehicles = [...prevVehicles]; //newVehicle君に今の値をこぴ
@@ -309,6 +416,42 @@ function GameView() {
 
   }
 
+  //車種変更係
+  function changeVehicleType(newType) {
+    setVehicles((prevVehicles) => {
+      const newVehicles = [...prevVehicles];
+
+      const vehicle = {
+        ...newVehicles[0],
+        position: { ...newVehicles[0].position },
+        target: { ...newVehicles[0].target },
+        transform: { ...newVehicles[0].transform },
+        effect: { ...newVehicles[0].effect },
+      };
+
+      const master = vehicleMaster[newType];
+
+      vehicle.type = newType;
+      vehicle.skin = master.defaultSkin;
+
+      vehicle.position = {
+        x: 960, y: 540,
+      };
+
+      vehicle.target = {
+        x: 960, y: 540,
+      };
+
+      vehicle.state = State.STOP;
+      vehicle.frame = Frame.IDLE;
+      vehicle.effect.type = null;
+      vehicle.transform.scaleX = 1;
+      vehicle.transform.scaleY = 1;
+
+      newVehicles[0] = vehicle;
+      return newVehicles;
+    });
+  }
 
   //色変更係
   function changeVehicleSkin(newSkin) {
@@ -327,6 +470,48 @@ function GameView() {
       newVehicles[0] = vehicle;
       return newVehicles;
     });
+  }
+
+
+  //メニュー付箋位置情報システム
+  function getVehicleMenuTabRect() {
+    const menu = vehicleMenuRef.current;
+
+    const closedX =
+      1920 - VehicleMenu.TAB_WIDTH;
+
+    const openedX =
+      1920 - VehicleMenu.PANEL_WIDTH - VehicleMenu.TAB_WIDTH;
+
+    const x =
+      closedX + (openedX - closedX) * menu.progress;
+
+    return {
+      x,
+      y: 70,
+      width: VehicleMenu.TAB_WIDTH,
+      height: VehicleMenu.TAB_HEIGHT,
+    };
+  }
+
+  //メニュー付箋おさわりチェック
+  function isPointInsideRect(x,y,rect){
+    return(
+      x >= rect.x &&
+      x <= rect.x + rect.width &&
+      y >= rect.y &&
+      y <= rect.y + rect.height
+    );
+  }
+
+  //メニュー開け閉めチェック係
+  function toggleVehicleMenu(now) {
+    const menu = vehicleMenuRef.current;
+
+    menu.startTime = now;
+    menu.startProgress = menu.progress;
+    menu.targetProgress = menu.isOpen ? 0 : 1;
+    menu.isOpen = !menu.isOpen;
   }
 
   //走行アニメーション係
@@ -440,6 +625,28 @@ function GameView() {
     }
   }
 
+  //メニュー開け閉め係
+  function updateVehicleMenu(now) {
+    const menu = vehicleMenuRef.current;
+
+    if (menu.progress === menu.targetProgress) {
+      return;
+    }
+
+    const elapsed = now - menu.startTime;
+    const t = Math.min(
+      elapsed / VehicleMenu.OPEN_DURATION,
+      1
+    );
+
+    menu.progress =
+      menu.startProgress + (menu.targetProgress - menu.startProgress) * t;
+
+    if (t === 1) {
+      menu.progress = menu.targetProgress;
+    }
+  }
+
   //現場監督
   function update(now) {
     setVehicles((prevVehicles) => {
@@ -463,6 +670,7 @@ function GameView() {
       updatePosition(vehicle, master, dx, dy, distance);
       updateColoPuddleCollision(vehicle);
       updateEffect(vehicle, now);
+      updateVehicleMenu(now);
 
       newVehicles[0] = vehicle;
 
@@ -479,10 +687,13 @@ function GameView() {
 
     //画像はここから。
     const background = new Image();
+
     const bus01 = new Image();
     const bus02 = new Image();
     const bus03 = new Image();
     const bus04 = new Image();
+    const ambulance01 = new Image();
+
     const puddle01 = new Image();
     const puddle02 = new Image();
     const puddle03 = new Image();
@@ -497,6 +708,8 @@ function GameView() {
     imagesRef.current.puddle02 = puddle02;
     imagesRef.current.puddle03 = puddle03;
     imagesRef.current.puddle04 = puddle04;
+    imagesRef.current.ambulance01 = ambulance01;
+
 
     //画像の場所はここ。
     background.src = `${import.meta.env.BASE_URL}images/background01.png`;
@@ -508,6 +721,7 @@ function GameView() {
     puddle02.src = `${import.meta.env.BASE_URL}images/puddle02.png`;
     puddle03.src = `${import.meta.env.BASE_URL}images/puddle03.png`;
     puddle04.src = `${import.meta.env.BASE_URL}images/puddle04.png`;
+    ambulance01.src = `${import.meta.env.BASE_URL}images/ambulance01.png`;
 
     //音も読み込んじゃうよ。
     const busHorn = new Audio(
@@ -522,7 +736,7 @@ function GameView() {
     function imageLoaded() {
       loaded++;
 
-      if (loaded === 9) {
+      if (loaded === 10) {
         draw(ctx);
       }
     }
@@ -537,6 +751,7 @@ function GameView() {
     puddle02.onload = imageLoaded;
     puddle03.onload = imageLoaded;
     puddle04.onload = imageLoaded;
+    ambulance01.onload = imageLoaded;
 
   }, []);
 
