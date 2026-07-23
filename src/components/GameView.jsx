@@ -147,8 +147,8 @@ function GameView() {
     {
       id: 1,
 
-      type: "ambulance",
-      skin: "normal",
+      type: "bus",
+      skin: "yellow",
 
       position: {
         x: 960,
