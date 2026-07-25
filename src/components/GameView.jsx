@@ -40,6 +40,12 @@ const vehicleMaster = {
       pink: "bus04",
     },
 
+    shadow: {
+      offsetY: 50,
+      width: 55,
+      height: 18,
+    },
+
     actionSound: "busHorn",
   },
 
@@ -53,6 +59,12 @@ const vehicleMaster = {
     defaultSkin: "normal",
     skins: {
       normal: "ambulance01",
+    },
+
+    shadow: {
+      offsetY: 40,
+      width: 55,
+      height: 18,
     },
 
     actionSound: "ambulanceSiren",
@@ -297,6 +309,25 @@ function GameView() {
     };
   }, []);
 
+
+  //影つけ係
+  function drawShadow(ctx, x, y, width, height) {
+    ctx.beginPath();
+
+    ctx.ellipse(
+        x,
+        y,
+        width,
+        height,
+        0,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fillStyle = "rgba(0,0,0,0.2)";
+    ctx.fill();
+  }  
+
   //のりもの描画係
   function drawVehicle(ctx, vehicle) {
     const master = vehicleMaster[vehicle.type];
@@ -312,31 +343,20 @@ function GameView() {
 
     const drawWidth = frameWidth * vehicle.transform.scaleX;
     const drawHeight = frameHeight * vehicle.transform.scaleY;
-  
-  //車に影をつけるよ！
-  ctx.save();
 
-  ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
-  ctx.shadowBlur = 8;
-  ctx.shadowOffsetX = 4;
-  ctx.shadowOffsetY = 8;
+    ctx.drawImage(
+      image,
 
-  ctx.drawImage(
-    image,
+      sx,
+      sy,
+      frameWidth,
+      frameHeight,
 
-    sx,
-    sy,
-    frameWidth,
-    frameHeight,
-
-    vehicle.position.x - drawWidth / 2,
-    vehicle.position.y - drawHeight / 2,
-    drawWidth,
-    drawHeight,
-  );
-
-  //影設定を元に戻すよ
-  ctx.restore();
+      vehicle.position.x - drawWidth / 2,
+      vehicle.position.y - drawHeight / 2,
+      drawWidth,
+      drawHeight,
+    );  
   }
 
   //インク池描画係
@@ -498,6 +518,15 @@ function GameView() {
 
     //動かすのりもの描画係
     const vehicle = vehiclesRef.current[0];
+    const master = vehicleMaster[vehicle.type];
+    const shadow = master.shadow;
+    drawShadow(
+      ctx,
+      vehicle.position.x,
+      vehicle.position.y + shadow.offsetY,
+      shadow.width,
+      shadow.height
+    );
     drawVehicle(ctx, vehicle);
 
     drawVehicleMenu(ctx, now);
