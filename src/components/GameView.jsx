@@ -263,6 +263,7 @@ function GameView() {
     busHorn: null,
     ambulanceSiren: null,
     select01: null,
+    menuOpen01: null,
   });
 
   const vehicleMenuRef = useRef({
@@ -500,6 +501,13 @@ function GameView() {
 
     if (isPointInsideRect(x, y, tabRect)) {   //触ってたらメニューをだして！車は動かさないよ。
       toggleVehicleMenu(performance.now());
+      //メニュー音
+      const selectSound = soundsRef.current.menuOpen01;
+      if (selectSound) {
+        selectSound.currentTime = 0;
+        selectSound.play();
+      }
+
       return;
     }
 
@@ -945,10 +953,14 @@ function GameView() {
     const select01 = new Audio(
       `${import.meta.env.BASE_URL}sounds/select01.mp3`
     );
+    const menuOpen01 = new Audio(
+      `${import.meta.env.BASE_URL}sounds/menuOpen01.mp3`
+    );
 
     soundsRef.current.busHorn = busHorn;
     soundsRef.current.ambulanceSiren = ambulanceSiren;
     soundsRef.current.select01 = select01;
+    soundsRef.current.menuOpen01 = menuOpen01;
 
     let loaded = 0;
 
@@ -1019,7 +1031,10 @@ function GameView() {
         <div className="version">
           Ver {VERSION}
         </div>
+      </div>
 
+      <div className="copyright">
+        効果音素材：OtoLogic様、Notzan ACT様
       </div>
 
     </div>
