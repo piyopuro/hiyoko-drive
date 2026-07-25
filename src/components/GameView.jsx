@@ -249,12 +249,20 @@ function GameView() {
     puddle03: null,
     puddle04: null,
   });
+
+  const vehiclesRef = useRef(vehicles); //車の情報
+
+  useEffect(() => {   //車の情報が変わったら入れるよ
+    vehiclesRef.current = vehicles;
+  }, [vehicles]);
+
   const animationTimerRef = useRef(0);
   const ctxRef = useRef(null);
 
   const soundsRef = useRef({
     busHorn: null,
     ambulanceSiren: null,
+    select01: null,
   });
 
   const vehicleMenuRef = useRef({
@@ -265,6 +273,11 @@ function GameView() {
     targetProgress: 0,
 
     progress: 0,  //閉じてる？開いてる？
+  });
+
+  const vehicleSelectEffectRef = useRef({
+    type: null,
+    startTime: 0,
   });
 
   //ウインドウサイズ監視君。変更があったらゲーム画面の大きさを変えてくれるところ。
@@ -330,7 +343,7 @@ function GameView() {
   }
 
   //メニュー描画係
-  function drawVehicleMenu(ctx) {
+  function drawVehicleMenu(ctx, now) {
     const menu = vehicleMenuRef.current;
 
     const panelX =
@@ -349,10 +362,10 @@ function GameView() {
     const menuVehicles = getVehicleMenuVehicles();
 
     for (const vehicle of menuVehicles) {
-      drawMenuVehicle(ctx, vehicle,);
+      drawMenuVehicle(ctx, vehicle, now);
     }
 
-    ctx.restore();
+    //ctx.restore();
   }
 
   //メニュー付箋描画係
@@ -394,7 +407,7 @@ function GameView() {
   }
 
   //メニューの車描画係
-  function drawMenuVehicle(ctx, menuVehicle) {
+  function drawMenuVehicle(ctx, menuVehicle, now) {
     const master = vehicleMaster[menuVehicle.type];
 
     const imageKey =
@@ -409,11 +422,37 @@ function GameView() {
     const frameWidth = master.width;
     const frameHeight = master.height;
 
-    const frame = Frame.IDLE;
+    //メニューのおくるまは今操作中のおくるまですか？
+    const isSelected = menuVehicle.type === vehiclesRef.current[0].type;
+
+    const frame = isSelected
+      ? Math.floor(now / 120) % 2   //もし選択中なら120ﾐﾘ秒ごとに切り替えて！
+      : 0;
+
     const direction = Direction.RIGHT;
 
     const sx = frame * frameWidth;
-    const sy = frame * frameHeight;
+    const sy = direction * frameHeight;
+
+
+    //選択したときのぽよん計算
+    let popScale = 1;
+
+    const effect = vehicleSelectEffectRef.current;
+
+    if (effect.type === menuVehicle.type) {
+      const elapsed = now - effect.startTime; //経過時間
+      const duration = 300;
+
+      if (elapsed < duration) {
+        const progress = elapsed / duration;
+
+        popScale = 1 + Math.sin(progress * Math.PI) * 0.25;
+      }
+    }
+
+    const drawWidth = frameWidth * popScale;
+    const drawHeight = frameHeight * popScale;
 
     ctx.drawImage(
       image,
@@ -423,15 +462,15 @@ function GameView() {
       frameWidth,
       frameHeight,
 
-      menuVehicle.x - frameWidth / 2,
-      menuVehicle.y - frameHeight / 2,
-      frameWidth,
-      frameHeight
+      menuVehicle.x - drawWidth / 2,
+      menuVehicle.y - drawHeight / 2,
+      drawWidth,
+      drawHeight
     );
   }
 
   //描画担当本部
-  function draw(ctx) {
+  function draw(ctx, now) {
     const background = imagesRef.current.background;
 
     //一回画面をきれいにする。
@@ -446,10 +485,10 @@ function GameView() {
     }
 
     //動かすのりもの描画係
-    const vehicle = vehicles[0];
+    const vehicle = vehiclesRef.current[0];
     drawVehicle(ctx, vehicle);
 
-    drawVehicleMenu(ctx);
+    drawVehicleMenu(ctx, now);
     drawVehicleMenuTab(ctx);
   }
 
@@ -485,7 +524,17 @@ function GameView() {
 
         if (isPointInsideRect(x, y, vehicleRect)) {
           changeVehicleType(menuVehicle.type);
+
+          const selectSound = soundsRef.current.select01;
+
+          //ぷにっ
+          if (selectSound) {
+            selectSound.currentTime = 0;
+            selectSound.play();
+          }
+
           return;
+          //車を触っていたら車を切り替えて離脱！
         }
       }
 
@@ -550,6 +599,12 @@ function GameView() {
 
   //車種変更係
   function changeVehicleType(newType) {
+    vehicleSelectEffectRef.current = {
+      type: newType,
+      startTime: performance.now(),
+    };
+
+
     setVehicles((prevVehicles) => {
       const newVehicles = [...prevVehicles];
 
@@ -827,6 +882,12 @@ function GameView() {
 
       return newVehicles;
     });
+
+    const ctx = ctxRef.current;
+
+    if (ctx) {
+      draw(ctx, now);
+    }
   }
 
   //ここはcanvas君。画面に背景とかバスとか描くところ。
@@ -881,10 +942,13 @@ function GameView() {
     const ambulanceSiren = new Audio(
       `${import.meta.env.BASE_URL}sounds/ambulanceSiren.mp3`
     );
-
+    const select01 = new Audio(
+      `${import.meta.env.BASE_URL}sounds/select01.mp3`
+    );
 
     soundsRef.current.busHorn = busHorn;
     soundsRef.current.ambulanceSiren = ambulanceSiren;
+    soundsRef.current.select01 = select01;
 
     let loaded = 0;
 
@@ -893,7 +957,7 @@ function GameView() {
       loaded++;
 
       if (loaded === 10) {
-        draw(ctx);
+        draw(ctx, performance.now());
       }
     }
 
@@ -914,10 +978,9 @@ function GameView() {
   useEffect(() => {
     if (!ctxRef.current) return;
 
-    draw(ctxRef.current);
+    draw(ctxRef.current, performance.now());
 
   }, [vehicles]);
-
 
   useEffect(() => {
     let animationFrameId;
