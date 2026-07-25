@@ -93,15 +93,15 @@ const colorPuddles = [
   },
   {
     id: 3,
-    x: 100,
-    y: 1000,
+    x: 200,
+    y: 850,
     radius: 80,
     skin: "green",
     imageName: "puddle03",
   },
   {
     id: 4,
-    x: 1700,
+    x: 1000,
     y: 200,
     radius: 80,
     skin: "pink",
