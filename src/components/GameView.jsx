@@ -298,6 +298,8 @@ function GameView() {
   const fpsDataRef = useRef({
   lastTime: performance.now(),
   frames: 0,
+  maxFrameTime: 0,
+  slowFrames: 0,
   });
   const fpsDisplayRef = useRef(null);
 
@@ -1050,17 +1052,32 @@ function GameView() {
       //FPSチェック
       const fpsData = fpsDataRef.current;
       fpsData.frames++;
+      const processStart = performance.now();
+
+      update(now);
+      
+      const processTime = performance.now() - processStart; 
+      
+      if (processTime > fpsData.maxFrameTime) {
+        fpsData.maxFrameTime = processTime;
+      }
+
+      // 16.7msを超えたフレーム数
+      if (processTime > 16.7) {
+        fpsData.slowFrames++;
+      }
 
       if (now - fpsData.lastTime >= 1000) {
         if (fpsDisplayRef.current) {
               fpsDisplayRef.current.textContent =
-                `FPS: ${fpsData.frames}`;
+                `FPS: ${fpsData.frames} / 最大: ${fpsData.maxFrameTime.toFixed(1)}ms / 遅延: ${fpsData.slowFrames}`;
         }
         fpsData.frames = 0;
+        fpsData.maxFrameTime = 0;
+        fpsData.slowFrames = 0;
         fpsData.lastTime = now;
       }
       
-      update(now);
       animationFrameId = requestAnimationFrame(gameLoop);
     }
 
