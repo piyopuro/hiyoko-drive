@@ -312,20 +312,31 @@ function GameView() {
 
     const drawWidth = frameWidth * vehicle.transform.scaleX;
     const drawHeight = frameHeight * vehicle.transform.scaleY;
+  
+  //車に影をつけるよ！
+  ctx.save();
 
-    ctx.drawImage(
-      image,
+  ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetX = 4;
+  ctx.shadowOffsetY = 8;
 
-      sx,
-      sy,
-      frameWidth,
-      frameHeight,
+  ctx.drawImage(
+    image,
 
-      vehicle.position.x - drawWidth / 2,
-      vehicle.position.y - drawHeight / 2,
-      drawWidth,
-      drawHeight,
-    );
+    sx,
+    sy,
+    frameWidth,
+    frameHeight,
+
+    vehicle.position.x - drawWidth / 2,
+    vehicle.position.y - drawHeight / 2,
+    drawWidth,
+    drawHeight,
+  );
+
+  //影設定を元に戻すよ
+  ctx.restore();
   }
 
   //インク池描画係
