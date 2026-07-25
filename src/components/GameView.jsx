@@ -293,6 +293,14 @@ function GameView() {
     startTime: 0,
   });
 
+  //FPSチェック
+  const fpsRef = useRef(null);
+  const fpsDataRef = useRef({
+  lastTime: performance.now(),
+  frames: 0,
+  });
+  const fpsDisplayRef = useRef(null);
+
   //ウインドウサイズ監視君。変更があったらゲーム画面の大きさを変えてくれるところ。
   useEffect(() => {
     function handleResize() {
@@ -1038,8 +1046,21 @@ function GameView() {
     let animationFrameId;
 
     function gameLoop(now) {
-      update(now);
+      
+      //FPSチェック
+      const fpsData = fpsDataRef.current;
+      fpsData.frames++;
 
+      if (now - fpsData.lastTime >= 1000) {
+        if (fpsDisplayRef.current) {
+              fpsDisplayRef.current.textContent =
+                `FPS: ${fpsData.frames}`;
+        }
+        fpsData.frames = 0;
+        fpsData.lastTime = now;
+      }
+      
+      update(now);
       animationFrameId = requestAnimationFrame(gameLoop);
     }
 
@@ -1067,6 +1088,13 @@ function GameView() {
           }}
           onClick={handleClick}
         />
+        
+        <div
+          ref={fpsDisplayRef}
+          className="fps"
+        >
+          FPS: --
+        </div>
 
         <div className="version">
           Ver {VERSION}
