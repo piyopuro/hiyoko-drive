@@ -296,10 +296,11 @@ function GameView() {
   //FPSチェック
   const fpsRef = useRef(null);
   const fpsDataRef = useRef({
-  lastTime: performance.now(),
+  lastReportTime: performance.now(),
+  previousFrameTime: null,
   frames: 0,
-  maxFrameTime: 0,
-  slowFrames: 0,
+  maxFrameGap: 0,
+  droppedFrames: 0,
   });
   const fpsDisplayRef = useRef(null);
 
@@ -1052,30 +1053,36 @@ function GameView() {
       //FPSチェック
       const fpsData = fpsDataRef.current;
       fpsData.frames++;
-      const processStart = performance.now();
+      if (fpsData.previousFrameTime !== null) {
+        const frameGap = now - fpsData.previousFrameTime;
+
+        if (frameGap > fpsData.maxFrameGap) {
+          fpsData.maxFrameGap = frameGap;
+        }
+
+        // 60fpsなら約16.7msごとに呼ばれる
+        const missedFrames =
+          Math.max(0, Math.round(frameGap / 16.67) - 1);
+
+        fpsData.droppedFrames += missedFrames;
+      }
+
+      fpsData.previousFrameTime = now;
 
       update(now);
       
-      const processTime = performance.now() - processStart; 
-      
-      if (processTime > fpsData.maxFrameTime) {
-        fpsData.maxFrameTime = processTime;
+      if (now - fpsData.lastReportTime >= 1000) {
+      if (fpsDisplayRef.current) {
+        fpsDisplayRef.current.textContent =
+          `FPS: ${fpsData.frames}` +
+          ` / 最大間隔: ${fpsData.maxFrameGap.toFixed(1)}ms` +
+          ` / 落ち: ${fpsData.droppedFrames}`;
       }
 
-      // 16.7msを超えたフレーム数
-      if (processTime > 16.7) {
-        fpsData.slowFrames++;
-      }
-
-      if (now - fpsData.lastTime >= 1000) {
-        if (fpsDisplayRef.current) {
-              fpsDisplayRef.current.textContent =
-                `FPS: ${fpsData.frames} / 最大: ${fpsData.maxFrameTime.toFixed(1)}ms / 遅延: ${fpsData.slowFrames}`;
-        }
-        fpsData.frames = 0;
-        fpsData.maxFrameTime = 0;
-        fpsData.slowFrames = 0;
-        fpsData.lastTime = now;
+      fpsData.frames = 0;
+      fpsData.maxFrameGap = 0;
+      fpsData.droppedFrames = 0;
+      fpsData.lastReportTime = now;
       }
       
       animationFrameId = requestAnimationFrame(gameLoop);
