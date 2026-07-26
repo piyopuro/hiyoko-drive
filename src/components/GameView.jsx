@@ -1010,11 +1010,6 @@ function GameView() {
       `${import.meta.env.BASE_URL}sounds/menuOpen01.mp3`
     );
 
-    soundsRef.current.busHorn = busHorn;
-    soundsRef.current.ambulanceSiren = ambulanceSiren;
-    soundsRef.current.select01 = select01;
-    soundsRef.current.menuOpen01 = menuOpen01;
-
     let loaded = 0;
 
     //読み込み進捗君。全部揃ったら描いてくれる。
