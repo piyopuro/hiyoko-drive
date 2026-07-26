@@ -631,11 +631,7 @@ function GameView() {
     //音鳴らしちゃうよ。
     const vehicle = vehicles[0];
     const master = vehicleMaster[vehicle.type];
-    const sound = soundsRef.current[master.actionSound];
-
-    sound.currentTime = 0;
-    //sound.play();
-
+    soundManagerRef.current.play(master.actionSound);
   }
 
   //方向更新係
@@ -1121,6 +1117,16 @@ function GameView() {
       soundManager.load(
         "menuOpen01",
         `${import.meta.env.BASE_URL}sounds/menuOpen01.mp3`
+      ),
+      
+      soundManager.load(
+        "busHorn",
+        `${import.meta.env.BASE_URL}sounds/busHorn.mp3`
+      ),
+
+      soundManager.load(
+        "ambulanceSiren",
+        `${import.meta.env.BASE_URL}sounds/ambulanceSiren.mp3`
       ),
     ])
     .then(() => {
