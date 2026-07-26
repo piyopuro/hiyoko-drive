@@ -556,7 +556,7 @@ function GameView() {
       const selectSound = soundsRef.current.menuOpen01;
       if (selectSound) {
         selectSound.currentTime = 0;
-        selectSound.play();
+        //selectSound.play();
       }
 
       return;
@@ -589,7 +589,7 @@ function GameView() {
           //ぷにっ
           if (selectSound) {
             selectSound.currentTime = 0;
-            selectSound.play();
+ //           selectSound.play();
           }
 
           return;
@@ -621,7 +621,7 @@ function GameView() {
     const sound = soundsRef.current[master.actionSound];
 
     sound.currentTime = 0;
-    sound.play();
+    //sound.play();
 
   }
 
