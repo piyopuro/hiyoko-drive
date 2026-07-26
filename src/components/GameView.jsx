@@ -559,13 +559,16 @@ function GameView() {
     drawVehicleMenuTab(ctx);
   }
 
-  function handleClick(event) {
+  async function handleClick(event) {
 
     //AudioContext起きて！
-    soundManagerRef.current.resume().catch((error) => {
-    console.error("AudioContextの再開に失敗しました", error);
-    });
+    try {
+      await soundManagerRef.current.resume();
+    } catch (error) {
+      console.error("音声の準備に失敗しました", error);
+    }
 
+    //座標チェック
     const x = event.nativeEvent.offsetX / scale;
     const y = event.nativeEvent.offsetY / scale;
 
@@ -573,7 +576,7 @@ function GameView() {
 
     if (isPointInsideRect(x, y, tabRect)) {   //触ってたらメニューをだして！車は動かさないよ。
       toggleVehicleMenu(performance.now());
-      
+
       //メニュー音
 
       /*
@@ -607,7 +610,9 @@ function GameView() {
         };
 
         if (isPointInsideRect(x, y, vehicleRect)) {
+          soundManagerRef.current.play("select01");
           changeVehicleType(menuVehicle.type);
+
 
           /*
           const selectSound = soundsRef.current.select01;
@@ -619,7 +624,7 @@ function GameView() {
           }
 
           */
-         
+
           return;
           //車を触っていたら車を切り替えて離脱！
         }
@@ -686,9 +691,6 @@ function GameView() {
 
   //車種変更係
   function changeVehicleType(newType) {
-    
-    soundManagerRef.current.play("select01");
-
     vehicleSelectEffectRef.current = {
       type: newType,
       startTime: performance.now(),

@@ -2,6 +2,8 @@ class SoundManager {
   constructor() {
     this.audioContext = null;
     this.buffers = {};
+		this.arrayBuffers = {};
+		this.loadingPromises = {};
   }
 
   getAudioContext() {
@@ -19,35 +21,75 @@ class SoundManager {
     return this.audioContext;
   }
 
+	async load(name, url) {
+   　const loadingPromise = async () => {
+
+			const response = await fetch(url);
+
+			if (!response.ok) {
+				throw new Error(
+					`音声ファイルの読み込みに失敗しました: ${url}`
+				);
+			}
+
+			this.arrayBuffers[name] = await response.arrayBuffer();
+
+      // AudioContextがすでに作られている場合は、その場でデコード
+      if (this.audioContext) {
+        await this.decode(name);
+      }
+    };	
+
+		this.loadingPromises[name] = loadingPromise();
+
+    try {
+      await this.loadingPromises[name];
+    } finally {
+      delete this.loadingPromises[name];
+    }
+  }
+
+	async decode(name) {
+    if (this.buffers[name]) {
+      return;
+    }
+
+    const arrayBuffer = this.arrayBuffers[name];
+
+    if (!arrayBuffer) {
+      return;
+    }
+
+    const audioContext = this.getAudioContext();
+
+    this.buffers[name] = await audioContext.decodeAudioData(
+      arrayBuffer.slice(0)
+    );
+
+    delete this.arrayBuffers[name];
+  }
+
   async resume() {
     const audioContext = this.getAudioContext();
 
     if (audioContext.state === "suspended") {
       await audioContext.resume();
     }
+
+		// fetch待ち
+    await Promise.all(Object.values(this.loadingPromises));
+
+    // 取得済みの音をまとめてデコード
+    const names = Object.keys(this.arrayBuffers);
+
+    await Promise.all(
+      names.map((name) => this.decode(name))
+    );
+
   }
 
-	async load(name, url) {
-    const audioContext = this.getAudioContext();
-
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      throw new Error(
-        `音声ファイルの読み込みに失敗しました: ${url}`
-      );
-    }
-
-    const arrayBuffer = await response.arrayBuffer();
-
-    const audioBuffer =
-      await audioContext.decodeAudioData(arrayBuffer);
-
-    this.buffers[name] = audioBuffer;
-  }
 
 	play(name) {
-  const audioContext = this.getAudioContext();
   const audioBuffer = this.buffers[name];
 
   if (!audioBuffer) {
@@ -55,6 +97,7 @@ class SoundManager {
     return;
   }
 
+  const audioContext = this.getAudioContext();
   const source = audioContext.createBufferSource();
 
   source.buffer = audioBuffer;
