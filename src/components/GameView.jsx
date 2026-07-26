@@ -575,17 +575,9 @@ function GameView() {
     const tabRect = getVehicleMenuTabRect();  //付箋おさわりチェック
 
     if (isPointInsideRect(x, y, tabRect)) {   //触ってたらメニューをだして！車は動かさないよ。
+      soundManagerRef.current.play("menuOpen01");      //メニュー音
       toggleVehicleMenu(performance.now());
 
-      //メニュー音
-
-      /*
-      const selectSound = soundsRef.current.menuOpen01;
-      if (selectSound) {
-        selectSound.currentTime = 0;
-        selectSound.play();
-      }
-      */
 
       return;
     }
@@ -610,20 +602,8 @@ function GameView() {
         };
 
         if (isPointInsideRect(x, y, vehicleRect)) {
-          soundManagerRef.current.play("select01");
+          soundManagerRef.current.play("select01");     //ぷにっ
           changeVehicleType(menuVehicle.type);
-
-
-          /*
-          const selectSound = soundsRef.current.select01;
-
-          //ぷにっ
-          if (selectSound) {
-            selectSound.currentTime = 0;
-            //           selectSound.play();
-          }
-
-          */
 
           return;
           //車を触っていたら車を切り替えて離脱！
@@ -1131,21 +1111,24 @@ function GameView() {
   //音読み込み部署
   useEffect(() => {
     const soundManager = soundManagerRef.current;
-
-    soundManager
-      .load(
-        "select01",
-        `${import.meta.env.BASE_URL}sounds/select01.mp3`
-      )
-      .then(() => {
-        console.log("select01の読み込み完了");
-      })
-      .catch((error) => {
-        console.error(
-          "select01の読み込みに失敗しました",
-          error
-        );
-      });
+    
+    Promise.all([
+      soundManager.load(
+          "select01",
+          `${import.meta.env.BASE_URL}sounds/select01.mp3`
+      ),
+      
+      soundManager.load(
+        "menuOpen01",
+        `${import.meta.env.BASE_URL}sounds/menuOpen01.mp3`
+      ),
+    ])
+    .then(() => {
+      console.log("効果音の読み込み完了");
+    })
+    .catch((error) => {
+      console.error("効果音の読み込みに失敗しました", error);
+    });
   }, []);
 
 
