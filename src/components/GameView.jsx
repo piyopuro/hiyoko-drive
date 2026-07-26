@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { VERSION } from "../version";
+import SoundManager from "../SoundManager";
 
 const Direction = {
   RIGHT: 0,
@@ -198,16 +199,21 @@ function createVehicle({
 //ゲームの中身を描いてるところだよ。
 function GameView() {
 
+  //========画面管理人========
   const [screenSize, setScreenSize] = useState({
     width: window.innerWidth,
     height: window.innerHeight
   });
-
   //画面拡縮率計算君
   const scale = Math.min(
     screenSize.width / 1920,
     screenSize.height / 1080
   );
+  const canvasRef = useRef(null);
+  const ctxRef = useRef(null);
+
+
+  //========ゲーム管理人========
 
   //のりものたちの状態の記録係
   const [vehicles, setVehicles] = useState([
@@ -246,7 +252,6 @@ function GameView() {
 
   ]);
 
-  const canvasRef = useRef(null);
   const imagesRef = useRef({
     background: null,
 
@@ -263,13 +268,18 @@ function GameView() {
   });
 
   const vehiclesRef = useRef(vehicles); //車の情報
-
   useEffect(() => {   //車の情報が変わったら入れるよ
     vehiclesRef.current = vehicles;
   }, [vehicles]);
 
   const animationTimerRef = useRef(0);
-  const ctxRef = useRef(null);
+
+  //========マネージャーさん========
+  //音響担当
+  const soundManagerRef = useRef(null);
+  if (!soundManagerRef.current) {
+    soundManagerRef.current = new SoundManager();
+  }
 
   const soundsRef = useRef({
     busHorn: null,
@@ -278,6 +288,7 @@ function GameView() {
     menuOpen01: null,
   });
 
+  //========メニュー管理人========
   const vehicleMenuRef = useRef({
     isOpen: false,
 
@@ -293,16 +304,20 @@ function GameView() {
     startTime: 0,
   });
 
-  //FPSチェック
+  //========FPS管理人========
   const fpsRef = useRef(null);
   const fpsDataRef = useRef({
-  lastReportTime: performance.now(),
-  previousFrameTime: null,
-  frames: 0,
-  maxFrameGap: 0,
-  droppedFrames: 0,
+    lastReportTime: performance.now(),
+    previousFrameTime: null,
+    frames: 0,
+    maxFrameGap: 0,
+    droppedFrames: 0,
   });
   const fpsDisplayRef = useRef(null);
+
+
+  //₍₍ (ง ›ω‹ )ว ⁾⁾₍₍ (ง ›ω‹ )ว ⁾⁾₍₍ (ง ›ω‹ )ว ⁾⁾₍₍ (ง ›ω‹ )ว ⁾⁾
+
 
   //ウインドウサイズ監視君。変更があったらゲーム画面の大きさを変えてくれるところ。
   useEffect(() => {
@@ -326,18 +341,18 @@ function GameView() {
     ctx.beginPath();
 
     ctx.ellipse(
-        x,
-        y,
-        width,
-        height,
-        0,
-        0,
-        Math.PI * 2
+      x,
+      y,
+      width,
+      height,
+      0,
+      0,
+      Math.PI * 2
     );
 
     ctx.fillStyle = "rgba(0,0,0,0.2)";
     ctx.fill();
-  }  
+  }
 
   //のりもの描画係
   function drawVehicle(ctx, vehicle) {
@@ -367,7 +382,7 @@ function GameView() {
       vehicle.position.y - drawHeight / 2,
       drawWidth,
       drawHeight,
-    );  
+    );
   }
 
   //インク池描画係
@@ -545,6 +560,12 @@ function GameView() {
   }
 
   function handleClick(event) {
+
+    //AudioContext起きて！
+    soundManagerRef.current.resume().catch((error) => {
+    console.error("AudioContextの再開に失敗しました", error);
+    });
+
     const x = event.nativeEvent.offsetX / scale;
     const y = event.nativeEvent.offsetY / scale;
 
@@ -552,12 +573,16 @@ function GameView() {
 
     if (isPointInsideRect(x, y, tabRect)) {   //触ってたらメニューをだして！車は動かさないよ。
       toggleVehicleMenu(performance.now());
+      
       //メニュー音
+
+      /*
       const selectSound = soundsRef.current.menuOpen01;
       if (selectSound) {
         selectSound.currentTime = 0;
-        //selectSound.play();
+        selectSound.play();
       }
+      */
 
       return;
     }
@@ -584,14 +609,17 @@ function GameView() {
         if (isPointInsideRect(x, y, vehicleRect)) {
           changeVehicleType(menuVehicle.type);
 
+          /*
           const selectSound = soundsRef.current.select01;
 
           //ぷにっ
           if (selectSound) {
             selectSound.currentTime = 0;
- //           selectSound.play();
+            //           selectSound.play();
           }
 
+          */
+         
           return;
           //車を触っていたら車を切り替えて離脱！
         }
@@ -658,6 +686,9 @@ function GameView() {
 
   //車種変更係
   function changeVehicleType(newType) {
+    
+    soundManagerRef.current.play("select01");
+
     vehicleSelectEffectRef.current = {
       type: newType,
       startTime: performance.now(),
@@ -1049,7 +1080,7 @@ function GameView() {
     let animationFrameId;
 
     function gameLoop(now) {
-      
+
       //FPSチェック
       const fpsData = fpsDataRef.current;
       fpsData.frames++;
@@ -1070,21 +1101,21 @@ function GameView() {
       fpsData.previousFrameTime = now;
 
       update(now);
-      
+
       if (now - fpsData.lastReportTime >= 1000) {
-      if (fpsDisplayRef.current) {
-        fpsDisplayRef.current.textContent =
-          `FPS: ${fpsData.frames}` +
-          ` / 最大間隔: ${fpsData.maxFrameGap.toFixed(1)}ms` +
-          ` / 落ち: ${fpsData.droppedFrames}`;
+        if (fpsDisplayRef.current) {
+          fpsDisplayRef.current.textContent =
+            `FPS: ${fpsData.frames}` +
+            ` / 最大間隔: ${fpsData.maxFrameGap.toFixed(1)}ms` +
+            ` / 落ち: ${fpsData.droppedFrames}`;
+        }
+
+        fpsData.frames = 0;
+        fpsData.maxFrameGap = 0;
+        fpsData.droppedFrames = 0;
+        fpsData.lastReportTime = now;
       }
 
-      fpsData.frames = 0;
-      fpsData.maxFrameGap = 0;
-      fpsData.droppedFrames = 0;
-      fpsData.lastReportTime = now;
-      }
-      
       animationFrameId = requestAnimationFrame(gameLoop);
     }
 
@@ -1094,6 +1125,27 @@ function GameView() {
       cancelAnimationFrame(animationFrameId);
     };
   }, []);
+
+  //音読み込み部署
+  useEffect(() => {
+    const soundManager = soundManagerRef.current;
+
+    soundManager
+      .load(
+        "select01",
+        `${import.meta.env.BASE_URL}sounds/select01.mp3`
+      )
+      .then(() => {
+        console.log("select01の読み込み完了");
+      })
+      .catch((error) => {
+        console.error(
+          "select01の読み込みに失敗しました",
+          error
+        );
+      });
+  }, []);
+
 
   //今まで計算したやつ、ここで出てくるよ～。
   return (
@@ -1112,7 +1164,7 @@ function GameView() {
           }}
           onClick={handleClick}
         />
-        
+
         <div
           ref={fpsDisplayRef}
           className="fps"
