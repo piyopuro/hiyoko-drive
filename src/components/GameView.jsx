@@ -124,27 +124,43 @@ const colorPuddles = [
 
 //こちらがおくるまのメニューでございます。
 const VehicleMenu = {
-  TAB_WIDTH: 180,
+  TAB_WIDTH: 280,
   TAB_HEIGHT: 140,
 
-  PANEL_WIDTH: 1700,
-  PANEL_HEIGHT: 940,
+  PANEL_WIDTH: 1740,
+  PANEL_HEIGHT: 980,
+
+  PANEL_Y: 50,
+  TAB_Y: 120,
+
+  TAB_OVERHANG: 150,   //付箋はみ出し具合
 
   OPEN_DURATION: 300,
-}
+
+  VEHICLE_BASELINE_GAP: 8,  //罫線から車を離す。
+};
+
 //メニューのおくるまです。
 const vehicleMenuItems = [
   {
     type: "bus",
     skin: "yellow",
     offsetX: 300,
-    offsetY: 300,
+    lineY: 300,   //メニュー罫線の位置
+    baselineOffset: 0, //タイヤの位置補整
+
+    selectOffsetX: -130,
+    selectOffsetY: -90,
   },
   {
     type: "ambulance",
     skin: "normal",
     offsetX: 700,
-    offsetY: 300,
+    lineY: 300,
+    baselineOffset: 12,
+
+    selectOffsetX: -90,
+    selectOffsetY: -75,
   },
 ]
 
@@ -265,6 +281,10 @@ function GameView() {
     puddle02: null,
     puddle03: null,
     puddle04: null,
+
+    menuBackground01: null,
+    menuTag01: null,
+    selectAnimation01: null,
   });
 
   const vehiclesRef = useRef(vehicles); //車の情報
@@ -396,14 +416,19 @@ function GameView() {
   //メニュー描画係
   function drawVehicleMenu(ctx, now) {
     const menu = vehicleMenuRef.current;
+    const menuBackground = imagesRef.current.menuBackground01;
+
+    if (!menuBackground) {
+      return;
+    }
 
     const panelX =
       1920 - VehicleMenu.PANEL_WIDTH * menu.progress;
 
-    const panelY = 70;
+    const panelY = VehicleMenu.PANEL_Y;
 
-    ctx.fillStyle = "#eeeeee";
-    ctx.fillRect(
+    ctx.drawImage(
+      menuBackground,
       panelX,
       panelY,
       VehicleMenu.PANEL_WIDTH,
@@ -415,46 +440,31 @@ function GameView() {
     for (const vehicle of menuVehicles) {
       drawMenuVehicle(ctx, vehicle, now);
     }
-
-    //ctx.restore();
   }
 
   //メニュー付箋描画係
   function drawVehicleMenuTab(ctx) {
     const menu = vehicleMenuRef.current;
+    const menuTag = imagesRef.current.menuTag01;
 
     const closedX =
-      1920 - VehicleMenu.TAB_WIDTH;
+      1920 - VehicleMenu.TAB_OVERHANG;
+    const openedPanelX =
+      1920 - VehicleMenu.PANEL_WIDTH;
     const openedX =
-      1920 - VehicleMenu.PANEL_WIDTH - VehicleMenu.TAB_WIDTH;
+      openedPanelX - VehicleMenu.TAB_OVERHANG;
 
     const tabX =
       closedX + (openedX - closedX) * menu.progress;
-    const tabY = 70;
+    const tabY = VehicleMenu.TAB_Y;
 
-    ctx.save();
-
-    ctx.fillStyle = "#ff7800";
-    ctx.fillRect(
-      tabX, tabY,
-      VehicleMenu.TAB_WIDTH, VehicleMenu.TAB_HEIGHT
+    ctx.drawImage(
+      menuTag,
+      tabX,
+      tabY,
+      VehicleMenu.TAB_WIDTH,
+      VehicleMenu.TAB_HEIGHT
     );
-
-    // 仮の車マーク
-    ctx.fillStyle = "#ffffff";
-
-    ctx.beginPath();
-    ctx.roundRect(
-      tabX + 35,
-      tabY + 45,
-      110,
-      55,
-      24
-    );
-    ctx.fill();
-
-    ctx.restore();
-
   }
 
   //メニューの車描画係
@@ -475,6 +485,9 @@ function GameView() {
 
     //メニューのおくるまは今操作中のおくるまですか？
     const isSelected = menuVehicle.type === vehiclesRef.current[0].type;
+    if (isSelected) {
+      drawMenuSelectAnimation(ctx, menuVehicle, now); //選ばれてたら☆つけて
+    }
 
     const frame = isSelected
       ? Math.floor(now / 120) % 2   //もし選択中なら120ﾐﾘ秒ごとに切り替えて！
@@ -515,6 +528,47 @@ function GameView() {
 
       menuVehicle.x - drawWidth / 2,
       menuVehicle.y - drawHeight / 2,
+      drawWidth,
+      drawHeight
+    );
+  }
+
+  //メニューの☆描画係
+  function drawMenuSelectAnimation(ctx, menuVehicle, now) {
+    const image = imagesRef.current.selectAnimation01;
+
+    if (!image) {
+      return;
+    }
+
+    const frameWidth = 128;
+    const frameHeight = 128;
+
+    const frame =
+      Math.floor(now / 180) % 4;    
+    const scalePattern = [0.85, 1.0, 1.12, 1.0];
+    const scale = scalePattern[frame];
+    const baseSize = 80;
+
+    const drawWidth = baseSize * scale;
+    const drawHeight = baseSize * scale;
+
+    const sx = frame * frameWidth;
+    const sy = 0;
+
+    const starX = menuVehicle.x + (menuVehicle.selectOffsetX ?? 0);
+    const starY = menuVehicle.y + (menuVehicle.selectOffsetY ?? -145);
+
+    ctx.drawImage(
+      image,
+
+      sx,
+      sy,
+      frameWidth,
+      frameHeight,
+
+      starX - drawWidth / 2,
+      starY - drawHeight / 2,
       drawWidth,
       drawHeight
     );
@@ -727,16 +781,16 @@ function GameView() {
 
     const closedX =
       1920 - VehicleMenu.TAB_WIDTH;
-
+    const openedPanelX =
+      1920 - VehicleMenu.PANEL_WIDTH;
     const openedX =
-      1920 - VehicleMenu.PANEL_WIDTH - VehicleMenu.TAB_WIDTH;
-
+      openedPanelX - VehicleMenu.TAB_OVERHANG;
     const x =
       closedX + (openedX - closedX) * menu.progress;
 
     return {
       x,
-      y: 70,
+      y: VehicleMenu.TAB_Y,
       width: VehicleMenu.TAB_WIDTH,
       height: VehicleMenu.TAB_HEIGHT,
     };
@@ -767,14 +821,19 @@ function GameView() {
 
     const panelX =
       1920 - VehicleMenu.PANEL_WIDTH * menu.progress;
+    const panelY = VehicleMenu.PANEL_Y;
 
-    const panelY = 70;
+    return vehicleMenuItems.map((item) => {
+      const master = vehicleMaster[item.type];
+      return {
+        ...item,
 
-    return vehicleMenuItems.map((item) => ({
-      ...item,
-      x: panelX + item.offsetX,
-      y: panelY + item.offsetY,
-    }));
+        x: panelX + item.offsetX,
+        y: panelY + item.lineY - master.height / 2
+          - VehicleMenu.VEHICLE_BASELINE_GAP
+          + (item.baselineOffset ?? 0),
+      };
+    });
   }
 
   //走行アニメーション係
@@ -972,6 +1031,10 @@ function GameView() {
     const puddle03 = new Image();
     const puddle04 = new Image();
 
+    const menuBackground01 = new Image();
+    const menuTag01 = new Image();
+    const selectAnimation01 = new Image();
+
     imagesRef.current.background = background;
     imagesRef.current.bus01 = bus01;
     imagesRef.current.bus02 = bus02;
@@ -982,6 +1045,10 @@ function GameView() {
     imagesRef.current.puddle03 = puddle03;
     imagesRef.current.puddle04 = puddle04;
     imagesRef.current.ambulance01 = ambulance01;
+    imagesRef.current.menuBackground01 = menuBackground01;
+    imagesRef.current.menuTag01 = menuTag01;
+    imagesRef.current.selectAnimation01 = selectAnimation01;
+
 
 
     //画像の場所はここ。
@@ -995,6 +1062,9 @@ function GameView() {
     puddle03.src = `${import.meta.env.BASE_URL}images/puddle03.png`;
     puddle04.src = `${import.meta.env.BASE_URL}images/puddle04.png`;
     ambulance01.src = `${import.meta.env.BASE_URL}images/ambulance01.png`;
+    menuBackground01.src = `${import.meta.env.BASE_URL}images/menuBackground01.png`;
+    menuTag01.src = `${import.meta.env.BASE_URL}images/menuTag01.png`;
+    selectAnimation01.src = `${import.meta.env.BASE_URL}images/selectAnimation01.png`;
 
     //音も読み込んじゃうよ。
     const busHorn = new Audio(
@@ -1016,7 +1086,7 @@ function GameView() {
     function imageLoaded() {
       loaded++;
 
-      if (loaded === 10) {
+      if (loaded === 13) {
         draw(ctx, performance.now());
       }
     }
@@ -1032,6 +1102,9 @@ function GameView() {
     puddle03.onload = imageLoaded;
     puddle04.onload = imageLoaded;
     ambulance01.onload = imageLoaded;
+    menuBackground01.onload = imageLoaded;
+    menuTag01.onload = imageLoaded;
+    selectAnimation01.onload = imageLoaded;
 
   }, []);
 
@@ -1095,13 +1168,13 @@ function GameView() {
   //音読み込み部署
   useEffect(() => {
     const soundManager = soundManagerRef.current;
-    
+
     Promise.all([
       soundManager.load(
-          "select01",
-          `${import.meta.env.BASE_URL}sounds/select01.mp3`
+        "select01",
+        `${import.meta.env.BASE_URL}sounds/select01.mp3`
       ),
-      
+
       soundManager.load(
         "menuOpen01",
         `${import.meta.env.BASE_URL}sounds/menuOpen01.mp3`
@@ -1117,12 +1190,12 @@ function GameView() {
         `${import.meta.env.BASE_URL}sounds/ambulanceSiren.mp3`
       ),
     ])
-    .then(() => {
-      console.log("効果音の読み込み完了");
-    })
-    .catch((error) => {
-      console.error("効果音の読み込みに失敗しました", error);
-    });
+      .then(() => {
+        console.log("効果音の読み込み完了");
+      })
+      .catch((error) => {
+        console.error("効果音の読み込みに失敗しました", error);
+      });
   }, []);
 
 
