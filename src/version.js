@@ -1,3 +1,3 @@
-export const APP_NAME = "Hiyoko Drive";
+export const APP_NAME = "Okki-Bapu";
 
-export const VERSION = "0.5.17";
+export const VERSION = "0.5.18";

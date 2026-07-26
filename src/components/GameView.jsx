@@ -281,13 +281,6 @@ function GameView() {
     soundManagerRef.current = new SoundManager();
   }
 
-  const soundsRef = useRef({
-    busHorn: null,
-    ambulanceSiren: null,
-    select01: null,
-    menuOpen01: null,
-  });
-
   //========メニュー管理人========
   const vehicleMenuRef = useRef({
     isOpen: false,
@@ -1118,7 +1111,7 @@ function GameView() {
         "menuOpen01",
         `${import.meta.env.BASE_URL}sounds/menuOpen01.mp3`
       ),
-      
+
       soundManager.load(
         "busHorn",
         `${import.meta.env.BASE_URL}sounds/busHorn.mp3`
