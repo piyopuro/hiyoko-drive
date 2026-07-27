@@ -545,7 +545,7 @@ function GameView() {
     const frameHeight = 128;
 
     const frame =
-      Math.floor(now / 180) % 4;    
+      Math.floor(now / 180) % 4;
     const scalePattern = [0.85, 1.0, 1.12, 1.0];
     const scale = scalePattern[frame];
     const baseSize = 80;
@@ -965,8 +965,10 @@ function GameView() {
       1
     );
 
+    const easedT = 1 - Math.pow(1 - t, 3);    //★イーズアウトキュービック
+
     menu.progress =
-      menu.startProgress + (menu.targetProgress - menu.startProgress) * t;
+      menu.startProgress + (menu.targetProgress - menu.startProgress) * easedT;
 
     if (t === 1) {
       menu.progress = menu.targetProgress;
