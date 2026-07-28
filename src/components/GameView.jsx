@@ -107,7 +107,7 @@ const colorPuddles = [
   {
     id: 3,
     x: 200,
-    y: 850,
+    y: 600,
     radius: 80,
     skin: "green",
     imageName: "puddle03",
@@ -164,53 +164,28 @@ const vehicleMenuItems = [
   },
 ]
 
-/*動きセット
-const effectMaster = {
-  start: {
-    frameInterval: 15,
-    scaleX: [0.92, 0.86, 0.81, 0.77, 0.74, 0.72, 0.71, 0.72, 0.74, 0.77, 0.81, 0.86, 0.92, 0.96, 0.99, 1.00,],
-    scaleY: [1.08, 1.14, 1.19, 1.23, 1.26, 1.28, 1.29, 1.28, 1.26, 1.23, 1.19, 1.14, 1.08, 1.04, 1.01, 1.00,],
-  },
+//電車と踏切の情報だよ。
+const Railway = {
+  //踏切
+  CROSSING_X: 300,
+  CROSSING_Y: 950,
+  CROSSING_WIDTH: 128,
+  CROSSING_HEIGHT: 192,
 
-  stop: {
-    frameInterval: 15,
-    scaleX: [1.08, 1.14, 1.19, 1.23, 1.26, 1.28, 1.29, 1.28, 1.26, 1.23, 1.19, 1.14, 1.08, 1.04, 1.01, 1.00,],
-    scaleY: [0.92, 0.86, 0.81, 0.77, 0.74, 0.72, 0.71, 0.72, 0.74, 0.77, 0.81, 0.86, 0.92, 0.96, 0.99, 1.00,],
-  },
+  CROSSING_FRAME_WIDTH: 128,
+  CROSSING_FRAME_HEIGHT: 192,
+
+  CROSSING_FRAME_INTERVAL: 600,
+
+  //電車
+  TRAIN_Y: 920,
+  TRAIN_WIDTH: 1344,
+  TRAIN_HEIGHT: 128,
+  TRAIN_SPEED: 3,
+
+  //踏切を押してから電車が発車するまで
+  START_DELAY: 1200,
 };
-*/
-
-/*
-
-//のりものオブジェクトお渡し係
-function createVehicle({
-  type,
-  skin,
-  x,
-  y,
-  direction=0,
-}){
-  const master= vehicleMaster[type];
-
-  return{
-    type,
-    skin: skin ?? master.defaultSkin,
-
-    frame:0,
-    direction,
-    position:{x,y,},
-    transform:{
-      scaleX=1,
-      scaleY=1,
-    },
-
-    effect:{
-      popFrame:0,
-    },
-  };
-}
-*/
-
 
 //ゲームの中身を描いてるところだよ。
 function GameView() {
@@ -264,9 +239,31 @@ function GameView() {
         duration: 0,
       },
     },
-
-
   ]);
+
+  //========電車管理人========
+  const railwayRef = useRef({
+    crossing: {
+      isRinging: false,
+
+      frame: 0, //通常時0、警報1と2
+
+      lastFrameTime: 0,
+    },
+    
+    train: {
+      isRunning: false,
+      isWaiting: false,
+
+      //右向きなら1、左向きなら-1
+      direction: 1,
+
+      x: -1344,
+      y: Railway.TRAIN_Y,
+
+      startTime: 0,
+    },
+  });
 
   const imagesRef = useRef({
     background: null,
@@ -275,7 +272,10 @@ function GameView() {
     bus02: null,
     bus03: null,
     bus04: null,
-    ambulance: null,
+    ambulance01: null,
+
+    train01:null,
+    crossing01:null,
 
     puddle01: null,
     puddle02: null,
@@ -410,6 +410,53 @@ function GameView() {
       puddle.y - size / 2,
       size,
       size,
+    );
+  }
+
+  //踏切描画係
+  function drawCrossing(ctx) {
+    const image = imagesRef.current.crossing01;
+    const crossing = railwayRef.current.crossing;
+
+    if (!image) {
+      return;
+    }
+
+    const sourceX =
+      crossing.frame * Railway.CROSSING_FRAME_WIDTH;
+
+    const sourceY = 0;
+
+    ctx.drawImage(
+      image,
+
+      sourceX,
+      sourceY,
+      Railway.CROSSING_FRAME_WIDTH,
+      Railway.CROSSING_FRAME_HEIGHT,
+
+      Railway.CROSSING_X - Railway.CROSSING_WIDTH / 2,
+      Railway.CROSSING_Y - Railway.CROSSING_HEIGHT / 2,
+      Railway.CROSSING_WIDTH,
+      Railway.CROSSING_HEIGHT    
+    );
+  }
+
+  //電車描画係
+  function drawTrain(ctx) {
+    const train = railwayRef.current.train;
+    const image = imagesRef.current.train01;
+
+    if (!train.isRunning || !image) {
+      return;
+    }
+
+    ctx.drawImage(
+      image,
+      train.x - Railway.TRAIN_WIDTH / 2,
+      train.y - Railway.TRAIN_HEIGHT / 2,
+      Railway.TRAIN_WIDTH,
+      Railway.TRAIN_HEIGHT
     );
   }
 
@@ -589,6 +636,7 @@ function GameView() {
       drawColorPuddle(ctx, puddle);
     }
 
+
     //動かすのりもの描画係
     const vehicle = vehiclesRef.current[0];
     const master = vehicleMaster[vehicle.type];
@@ -601,7 +649,13 @@ function GameView() {
       shadow.height
     );
     drawVehicle(ctx, vehicle);
+    
+    //電車描画係
+    drawTrain(ctx);
+    //踏切描画係
+    drawCrossing(ctx);
 
+    //メニュー描画係
     drawVehicleMenu(ctx, now);
     drawVehicleMenuTab(ctx);
   }
@@ -618,6 +672,13 @@ function GameView() {
     //座標チェック
     const x = event.nativeEvent.offsetX / scale;
     const y = event.nativeEvent.offsetY / scale;
+    
+    const crossingRect = getCrossingRect();
+
+    if (isPointInsideRect(x, y, crossingRect)) {
+      startTrain(performance.now());
+      return;
+    }
 
     const tabRect = getVehicleMenuTabRect();  //付箋おさわりチェック
 
@@ -806,6 +867,41 @@ function GameView() {
     );
   }
 
+  //踏切おさわり判定
+  function getCrossingRect() {
+    return {
+      x: Railway.CROSSING_X - Railway.CROSSING_WIDTH / 2,
+      y: Railway.CROSSING_Y - Railway.CROSSING_HEIGHT / 2,
+      width: Railway.CROSSING_WIDTH,
+      height: Railway.CROSSING_HEIGHT,
+    };
+  }
+
+  //電車出発準備係
+  function startTrain(now) {
+    const train = railwayRef.current.train;
+    const crossing = railwayRef.current.crossing;
+
+    //今走ってる？？連打禁止！
+    if (train.isRunning || train.isWaiting) {
+      return;
+    }
+
+    //左右指示係
+    train.direction = Math.random() < 0.5 ? 1 : -1;
+
+    train.isWaiting = true;
+    train.startTime = now;
+
+    //踏切アニメーション開始
+    crossing.isRinging = true;
+    crossing.frame = 1;
+    crossing.lastFrameTime = now;
+
+    //踏切音
+    soundManagerRef.current.play("crossing");
+  }
+
   //メニュー開け閉めチェック係
   function toggleVehicleMenu(now) {
     const menu = vehicleMenuRef.current;
@@ -887,6 +983,79 @@ function GameView() {
       y: vehicle.position.y + vy * master.speed,
     };
   }
+
+  //踏切係
+  function updateCrossing(now) {
+    const crossing = railwayRef.current.crossing;
+
+    //鳴っていない？
+    if (!crossing.isRinging) {
+      crossing.frame = 0;
+      return;
+    }
+
+    const elapsed = now - crossing.lastFrameTime;
+
+    if (elapsed < Railway.CROSSING_FRAME_INTERVAL) {
+      return;
+    }
+
+    crossing.lastFrameTime = now;
+
+    //警報①と警報②を交互にする
+    crossing.frame = crossing.frame === 1 ? 2 : 1;
+  }  
+
+  //電車移動係
+  function updateTrain(now) {
+    const train = railwayRef.current.train;
+    const crossing = railwayRef.current.crossing;
+
+    //踏切を押して電車を待っているところ
+    if (train.isWaiting) {
+      const elapsed = now - train.startTime;
+
+      if (elapsed >= Railway.START_DELAY) {
+        train.isWaiting = false;
+        train.isRunning = true;
+
+        if (train.direction === 1) {
+          //左側の画面外から右へ
+          train.x = -Railway.TRAIN_WIDTH / 2;
+        } else {
+          //右側の画面外から左へ
+          train.x = 1920 + Railway.TRAIN_WIDTH / 2;
+        }
+
+        soundManagerRef.current.play("train01");
+      }
+
+      return;
+    }
+
+    if (!train.isRunning) {
+      return;
+    }
+
+    train.x += Railway.TRAIN_SPEED * train.direction;
+
+    const passedRightSide =
+      train.direction === 1 &&
+      train.x - Railway.TRAIN_WIDTH / 2 > 1920;
+
+    const passedLeftSide =
+      train.direction === -1 &&
+      train.x + Railway.TRAIN_WIDTH / 2 < 0;
+
+    if (passedRightSide || passedLeftSide) {
+      train.isRunning = false;
+
+      //踏切おしまい
+      crossing.isRinging = false;
+      crossing.frame = 0;
+    }
+  }
+
 
   //ぽよん開始合図係
   function startEffect(vehicle, type) {
@@ -999,6 +1168,8 @@ function GameView() {
       updateColoPuddleCollision(vehicle);
       updateEffect(vehicle, now);
       updateVehicleMenu(now);
+      updateCrossing(now);
+      updateTrain(now);
 
       newVehicles[0] = vehicle;
 
@@ -1028,6 +1199,9 @@ function GameView() {
     const bus04 = new Image();
     const ambulance01 = new Image();
 
+    const train01 = new Image();
+    const crossing01 = new Image();
+
     const puddle01 = new Image();
     const puddle02 = new Image();
     const puddle03 = new Image();
@@ -1050,8 +1224,8 @@ function GameView() {
     imagesRef.current.menuBackground01 = menuBackground01;
     imagesRef.current.menuTag01 = menuTag01;
     imagesRef.current.selectAnimation01 = selectAnimation01;
-
-
+    imagesRef.current.train01 = train01;
+    imagesRef.current.crossing01 = crossing01;
 
     //画像の場所はここ。
     background.src = `${import.meta.env.BASE_URL}images/background01.png`;
@@ -1067,20 +1241,8 @@ function GameView() {
     menuBackground01.src = `${import.meta.env.BASE_URL}images/menuBackground01.png`;
     menuTag01.src = `${import.meta.env.BASE_URL}images/menuTag01.png`;
     selectAnimation01.src = `${import.meta.env.BASE_URL}images/selectAnimation01.png`;
-
-    //音も読み込んじゃうよ。
-    const busHorn = new Audio(
-      `${import.meta.env.BASE_URL}sounds/busHorn.mp3`
-    );
-    const ambulanceSiren = new Audio(
-      `${import.meta.env.BASE_URL}sounds/ambulanceSiren.mp3`
-    );
-    const select01 = new Audio(
-      `${import.meta.env.BASE_URL}sounds/select01.mp3`
-    );
-    const menuOpen01 = new Audio(
-      `${import.meta.env.BASE_URL}sounds/menuOpen01.mp3`
-    );
+    train01.src = `${import.meta.env.BASE_URL}images/train01.png`;
+    crossing01.src = `${import.meta.env.BASE_URL}images/crossing01.png`;
 
     let loaded = 0;
 
@@ -1088,7 +1250,7 @@ function GameView() {
     function imageLoaded() {
       loaded++;
 
-      if (loaded === 13) {
+      if (loaded === 15) {
         draw(ctx, performance.now());
       }
     }
@@ -1107,6 +1269,8 @@ function GameView() {
     menuBackground01.onload = imageLoaded;
     menuTag01.onload = imageLoaded;
     selectAnimation01.onload = imageLoaded;
+    train01.onload = imageLoaded;
+    crossing01.onload = imageLoaded;
 
   }, []);
 
@@ -1191,6 +1355,16 @@ function GameView() {
         "ambulanceSiren",
         `${import.meta.env.BASE_URL}sounds/ambulanceSiren.mp3`
       ),
+      
+      soundManager.load(
+        "train01",
+        `${import.meta.env.BASE_URL}sounds/train01.mp3`
+      ),
+
+      soundManager.load(
+        "crossing",
+        `${import.meta.env.BASE_URL}sounds/crossing.mp3`
+      ),
     ])
       .then(() => {
         console.log("効果音の読み込み完了");
@@ -1232,7 +1406,7 @@ function GameView() {
       </div>
 
       <div className="copyright">
-        効果音素材：OtoLogic様、Notzan ACT様
+        効果音素材：OtoLogic様、Notzan ACT様、フリー効果音素材 くらげ工匠様
       </div>
 
     </div>
