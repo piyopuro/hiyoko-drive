@@ -185,6 +185,12 @@ const Railway = {
 
   //踏切を押してから電車が発車するまで
   START_DELAY: 1200,
+  
+  shadow: {
+    offsetY: 55,
+    width: 1310,
+    height: 30,
+  },
 };
 
 //ゲームの中身を描いてるところだよ。
@@ -367,6 +373,22 @@ function GameView() {
     ctx.fill();
   }
 
+  //影（かどまる四角）つけ係
+  function drawRectShadow(ctx, x, y, width, height, radius = 8) {
+    ctx.beginPath();
+
+    ctx.roundRect(
+      x - width / 2,
+      y - height / 2,
+      width,
+      height,
+      radius
+    );
+
+    ctx.fillStyle = "rgba(0,0,0,0.2)";
+    ctx.fill();
+  }
+
   //のりもの描画係
   function drawVehicle(ctx, vehicle) {
     const master = vehicleMaster[vehicle.type];
@@ -427,6 +449,14 @@ function GameView() {
 
     const sourceY = 0;
 
+    drawShadow(
+      ctx,
+      Railway.CROSSING_X,
+      Railway.CROSSING_Y + 90,
+      50,
+      10
+    );
+
     ctx.drawImage(
       image,
 
@@ -450,6 +480,15 @@ function GameView() {
     if (!train.isRunning || !image) {
       return;
     }
+
+    drawRectShadow(
+      ctx,
+      train.x,
+      train.y + Railway.shadow.offsetY,
+      Railway.shadow.width,
+      Railway.shadow.height,
+      10
+    );
 
     ctx.drawImage(
       image,
