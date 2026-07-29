@@ -39,6 +39,10 @@ const vehicleMaster = {
       blue: "bus02",
       green: "bus03",
       pink: "bus04",
+      red: "bus05",
+      purple: "bus06",
+      limeGreen: "bus07",
+      orange: "bus08",
     },
 
     shadow: {
@@ -87,40 +91,136 @@ const vehicleMaster = {
 };
 
 //インク池の情報たち
-const colorPuddles = [
+const colorPuddleMaster = [
   {
     id: 1,
-    x: 500,
-    y: 400,
     radius: 80,
     skin: "yellow",
     imageName: "puddle01",
   },
   {
     id: 2,
-    x: 1400,
-    y: 700,
     radius: 80,
     skin: "blue",
     imageName: "puddle02",
   },
   {
     id: 3,
-    x: 200,
-    y: 600,
     radius: 80,
     skin: "green",
     imageName: "puddle03",
   },
   {
     id: 4,
-    x: 1000,
-    y: 200,
     radius: 80,
     skin: "pink",
     imageName: "puddle04",
   },
+  {
+    id: 5,
+    radius: 80,
+    skin: "red",
+    imageName: "puddle05",
+  },
+  {
+    id: 6,
+    radius: 80,
+    skin: "purple",
+    imageName: "puddle06",
+  },
+  {
+    id: 7,
+    radius: 80,
+    skin: "limeGreen",
+    imageName: "puddle07",
+  },
+  {
+    id: 8,
+    radius: 80,
+    skin: "orange",
+    imageName: "puddle08",
+  },
 ];
+
+//最小値以上、最大値以下のランダムな数を作る係
+function getRandomNumber(min, max) {
+  return Math.random() * (max - min) + min;
+}
+
+//インク池ランダム配置係
+function createRandomColorPuddles() {
+  const placedPuddles = [];
+
+  const margin = 100; //余白
+  const puddleGap = 60; //インク池すきま
+
+  //バスの初期位置
+  const vehicleStartPosition = {
+    x: 960,
+    y: 540,
+  };
+  const vehicleStartGap = 220;
+
+  for (const puddleMaster of colorPuddleMaster) {
+    let positionFound = false;
+
+    //100回まで探せる
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const x = getRandomNumber(
+        margin + puddleMaster.radius,
+        1920 - margin - puddleMaster.radius
+      );
+      const y = getRandomNumber(
+        margin + puddleMaster.radius,
+        850 - margin - puddleMaster.radius
+      );
+
+      //インク池重なりチェック
+      const overlapsPuddle = placedPuddles.some((placedPuddle) => {
+        const dx = x - placedPuddle.x;
+        const dy = y - placedPuddle.y;
+
+        const distance = Math.hypot(dx, dy);
+
+        const minimumDistance =
+          puddleMaster.radius +
+          placedPuddle.radius +
+          puddleGap;
+
+        return distance < minimumDistance;
+      });
+
+      //バスの初期位置に近すぎないか確認
+      const distanceFromVehicleStart = Math.hypot(
+        x - vehicleStartPosition.x,
+        y - vehicleStartPosition.y
+      );
+
+      const tooCloseToVehicleStart =
+        distanceFromVehicleStart < vehicleStartGap;
+
+      //問題がなければ、この位置に決定！
+      if (!overlapsPuddle && !tooCloseToVehicleStart) {
+        placedPuddles.push({
+          ...puddleMaster,
+          x,
+          y,
+        });
+
+        positionFound = true;
+        break;
+      }
+    }
+
+    if (!positionFound) {
+      console.warn(
+        `インク池 ${puddleMaster.id} の置き場所が見つかりませんでした`
+      );
+    }
+  }
+
+  return placedPuddles;
+}
 
 //こちらがおくるまのメニューでございます。
 const VehicleMenu = {
@@ -210,7 +310,14 @@ function GameView() {
   const ctxRef = useRef(null);
 
 
+  
   //========ゲーム管理人========
+
+  //インク池ランダム座標決定所
+  const colorPuddlesRef = useRef(null);
+  if (colorPuddlesRef.current === null) {
+    colorPuddlesRef.current = createRandomColorPuddles();
+  }
 
   //のりものたちの状態の記録係
   const [vehicles, setVehicles] = useState([
@@ -278,6 +385,11 @@ function GameView() {
     bus02: null,
     bus03: null,
     bus04: null,
+    bus05: null,
+    bus06: null,
+    bus07: null,
+    bus08: null,
+
     ambulance01: null,
 
     train01:null,
@@ -287,6 +399,10 @@ function GameView() {
     puddle02: null,
     puddle03: null,
     puddle04: null,
+    puddle05: null,
+    puddle06: null,
+    puddle07: null,
+    puddle08: null,
 
     menuBackground01: null,
     menuTag01: null,
@@ -671,10 +787,9 @@ function GameView() {
     ctx.drawImage(background, 0, 0);
 
     //インク池描画係
-    for (const puddle of colorPuddles) {
+    for (const puddle of colorPuddlesRef.current) {
       drawColorPuddle(ctx, puddle);
     }
-
 
     //動かすのりもの描画係
     const vehicle = vehiclesRef.current[0];
@@ -880,7 +995,7 @@ function GameView() {
     const menu = vehicleMenuRef.current;
 
     const closedX =
-      1920 - VehicleMenu.TAB_WIDTH;
+      1920 - VehicleMenu.TAB_OVERHANG;
     const openedPanelX =
       1920 - VehicleMenu.PANEL_WIDTH;
     const openedX =
@@ -891,7 +1006,7 @@ function GameView() {
     return {
       x,
       y: VehicleMenu.TAB_Y,
-      width: VehicleMenu.TAB_WIDTH,
+      width: VehicleMenu.TAB_OVERHANG,
       height: VehicleMenu.TAB_HEIGHT,
     };
   }
@@ -1147,7 +1262,7 @@ function GameView() {
 
     if (!master.canChangeColor) return;  //色変可能なくるまかどうかチェック！
 
-    for (const puddle of colorPuddles) {
+    for (const puddle of colorPuddlesRef.current) {
       const dx = vehicle.position.x - puddle.x;
       const dy = vehicle.position.y - puddle.y;
 
@@ -1236,6 +1351,11 @@ function GameView() {
     const bus02 = new Image();
     const bus03 = new Image();
     const bus04 = new Image();
+    const bus05 = new Image();
+    const bus06 = new Image();
+    const bus07 = new Image();
+    const bus08 = new Image();
+
     const ambulance01 = new Image();
 
     const train01 = new Image();
@@ -1245,6 +1365,10 @@ function GameView() {
     const puddle02 = new Image();
     const puddle03 = new Image();
     const puddle04 = new Image();
+    const puddle05 = new Image();
+    const puddle06 = new Image();
+    const puddle07 = new Image();
+    const puddle08 = new Image();
 
     const menuBackground01 = new Image();
     const menuTag01 = new Image();
@@ -1255,10 +1379,18 @@ function GameView() {
     imagesRef.current.bus02 = bus02;
     imagesRef.current.bus03 = bus03;
     imagesRef.current.bus04 = bus04;
+    imagesRef.current.bus05 = bus05;
+    imagesRef.current.bus06 = bus06;
+    imagesRef.current.bus07 = bus07;
+    imagesRef.current.bus08 = bus08;
     imagesRef.current.puddle01 = puddle01;
     imagesRef.current.puddle02 = puddle02;
     imagesRef.current.puddle03 = puddle03;
     imagesRef.current.puddle04 = puddle04;
+    imagesRef.current.puddle05 = puddle05;
+    imagesRef.current.puddle06 = puddle06;
+    imagesRef.current.puddle07 = puddle07;
+    imagesRef.current.puddle08 = puddle08;
     imagesRef.current.ambulance01 = ambulance01;
     imagesRef.current.menuBackground01 = menuBackground01;
     imagesRef.current.menuTag01 = menuTag01;
@@ -1272,10 +1404,18 @@ function GameView() {
     bus02.src = `${import.meta.env.BASE_URL}images/bus02.png`;
     bus03.src = `${import.meta.env.BASE_URL}images/bus03.png`;
     bus04.src = `${import.meta.env.BASE_URL}images/bus04.png`;
+    bus05.src = `${import.meta.env.BASE_URL}images/bus05.png`;
+    bus06.src = `${import.meta.env.BASE_URL}images/bus06.png`;
+    bus07.src = `${import.meta.env.BASE_URL}images/bus07.png`;
+    bus08.src = `${import.meta.env.BASE_URL}images/bus08.png`;
     puddle01.src = `${import.meta.env.BASE_URL}images/puddle01.png`;
     puddle02.src = `${import.meta.env.BASE_URL}images/puddle02.png`;
     puddle03.src = `${import.meta.env.BASE_URL}images/puddle03.png`;
     puddle04.src = `${import.meta.env.BASE_URL}images/puddle04.png`;
+    puddle05.src = `${import.meta.env.BASE_URL}images/puddle05.png`;
+    puddle06.src = `${import.meta.env.BASE_URL}images/puddle06.png`;
+    puddle07.src = `${import.meta.env.BASE_URL}images/puddle07.png`;
+    puddle08.src = `${import.meta.env.BASE_URL}images/puddle08.png`;
     ambulance01.src = `${import.meta.env.BASE_URL}images/ambulance01.png`;
     menuBackground01.src = `${import.meta.env.BASE_URL}images/menuBackground01.png`;
     menuTag01.src = `${import.meta.env.BASE_URL}images/menuTag01.png`;
@@ -1289,7 +1429,7 @@ function GameView() {
     function imageLoaded() {
       loaded++;
 
-      if (loaded === 15) {
+      if (loaded === 23) {
         draw(ctx, performance.now());
       }
     }
@@ -1300,10 +1440,18 @@ function GameView() {
     bus02.onload = imageLoaded;
     bus03.onload = imageLoaded;
     bus04.onload = imageLoaded;
+    bus05.onload = imageLoaded;
+    bus06.onload = imageLoaded;
+    bus07.onload = imageLoaded;
+    bus08.onload = imageLoaded;
     puddle01.onload = imageLoaded;
     puddle02.onload = imageLoaded;
     puddle03.onload = imageLoaded;
     puddle04.onload = imageLoaded;
+    puddle05.onload = imageLoaded;
+    puddle06.onload = imageLoaded;
+    puddle07.onload = imageLoaded;
+    puddle08.onload = imageLoaded;
     ambulance01.onload = imageLoaded;
     menuBackground01.onload = imageLoaded;
     menuTag01.onload = imageLoaded;
