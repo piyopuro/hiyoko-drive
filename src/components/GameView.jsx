@@ -29,7 +29,7 @@ const vehicleMaster = {
     width: 256,
     height: 128,
 
-    speed: 5,
+    speed: 300,
 
     canChangeColor: true,
 
@@ -58,7 +58,7 @@ const vehicleMaster = {
     width: 192,
     height: 128,
 
-    speed: 6,
+    speed: 360,
 
     canChangeColor: false,
     defaultSkin: "normal",
@@ -281,11 +281,11 @@ const Railway = {
   TRAIN_Y: 920,
   TRAIN_WIDTH: 1344,
   TRAIN_HEIGHT: 128,
-  TRAIN_SPEED: 3,
+  TRAIN_SPEED: 180,
 
   //踏切を押してから電車が発車するまで
   START_DELAY: 1200,
-  
+
   shadow: {
     offsetY: 55,
     width: 1310,
@@ -310,7 +310,7 @@ function GameView() {
   const ctxRef = useRef(null);
 
 
-  
+
   //========ゲーム管理人========
 
   //インク池ランダム座標決定所
@@ -363,7 +363,7 @@ function GameView() {
 
       lastFrameTime: 0,
     },
-    
+
     train: {
       isRunning: false,
       isWaiting: false,
@@ -392,8 +392,8 @@ function GameView() {
 
     ambulance01: null,
 
-    train01:null,
-    crossing01:null,
+    train01: null,
+    crossing01: null,
 
     puddle01: null,
     puddle02: null,
@@ -584,7 +584,7 @@ function GameView() {
       Railway.CROSSING_X - Railway.CROSSING_WIDTH / 2,
       Railway.CROSSING_Y - Railway.CROSSING_HEIGHT / 2,
       Railway.CROSSING_WIDTH,
-      Railway.CROSSING_HEIGHT    
+      Railway.CROSSING_HEIGHT
     );
   }
 
@@ -803,7 +803,7 @@ function GameView() {
       shadow.height
     );
     drawVehicle(ctx, vehicle);
-    
+
     //電車描画係
     drawTrain(ctx);
     //踏切描画係
@@ -826,7 +826,7 @@ function GameView() {
     //座標チェック
     const x = event.nativeEvent.offsetX / scale;
     const y = event.nativeEvent.offsetY / scale;
-    
+
     const crossingRect = getCrossingRect();
 
     if (isPointInsideRect(x, y, crossingRect)) {
@@ -1109,15 +1109,16 @@ function GameView() {
   }
 
   //のりものの位置情報更新係
-  function updatePosition(vehicle, master, dx, dy, distance) {
+  function updatePosition(vehicle, master, dx, dy, distance, deltaTime) {
 
     if (vehicle.state === State.STOP) return;
 
     const vx = dx / distance;
     const vy = dy / distance;
+    const moveDistance = master.speed * deltaTime;
 
     //目的地に着いたらこれ
-    if (distance < master.speed) {
+    if (distance <= moveDistance) {
 
       vehicle.state = State.STOP;  //バスの状態は止まってるよ。
       vehicle.frame = Frame.IDLE;  //バスのアニメーションは待機モード
@@ -1133,8 +1134,8 @@ function GameView() {
     }
 
     vehicle.position = {
-      x: vehicle.position.x + vx * master.speed,
-      y: vehicle.position.y + vy * master.speed,
+      x: vehicle.position.x + vx * moveDistance,
+      y: vehicle.position.y + vy * moveDistance,
     };
   }
 
@@ -1158,10 +1159,10 @@ function GameView() {
 
     //警報①と警報②を交互にする
     crossing.frame = crossing.frame === 1 ? 2 : 1;
-  }  
+  }
 
   //電車移動係
-  function updateTrain(now) {
+  function updateTrain(now, deltaTime) {
     const train = railwayRef.current.train;
     const crossing = railwayRef.current.crossing;
 
@@ -1191,7 +1192,7 @@ function GameView() {
       return;
     }
 
-    train.x += Railway.TRAIN_SPEED * train.direction;
+    train.x += Railway.TRAIN_SPEED * deltaTime * train.direction;
 
     const passedRightSide =
       train.direction === 1 &&
@@ -1299,7 +1300,7 @@ function GameView() {
   }
 
   //現場監督
-  function update(now) {
+  function update(now, deltaTime) {
     setVehicles((prevVehicles) => {
       const newVehicles = [...prevVehicles];
       const vehicle = { //念のためぜーんぶコピーするよ！
@@ -1318,12 +1319,12 @@ function GameView() {
 
       updateDirection(vehicle, dx, dy);
       updateAnimation(vehicle, animationTimerRef);
-      updatePosition(vehicle, master, dx, dy, distance);
+      updatePosition(vehicle, master, dx, dy, distance, deltaTime);
       updateColoPuddleCollision(vehicle);
       updateEffect(vehicle, now);
       updateVehicleMenu(now);
       updateCrossing(now);
-      updateTrain(now);
+      updateTrain(now, deltaTime);
 
       newVehicles[0] = vehicle;
 
@@ -1470,6 +1471,7 @@ function GameView() {
 
   useEffect(() => {
     let animationFrameId;
+    let previousTime = null;
 
     function gameLoop(now) {
 
@@ -1489,10 +1491,15 @@ function GameView() {
 
         fpsData.droppedFrames += missedFrames;
       }
-
       fpsData.previousFrameTime = now;
 
-      update(now);
+      const deltaTime =
+        previousTime === null
+          ? 0
+          : (now - previousTime) / 1000;
+      previousTime = now;
+
+      update(now, deltaTime);
 
       if (now - fpsData.lastReportTime >= 1000) {
         if (fpsDisplayRef.current) {
@@ -1542,7 +1549,7 @@ function GameView() {
         "ambulanceSiren",
         `${import.meta.env.BASE_URL}sounds/ambulanceSiren.mp3`
       ),
-      
+
       soundManager.load(
         "train01",
         `${import.meta.env.BASE_URL}sounds/train01.mp3`
