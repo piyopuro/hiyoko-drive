@@ -1087,24 +1087,24 @@ function GameView() {
   }
 
   //走行アニメーション係
-  function updateAnimation(vehicle, animationTimerRef) {
+  function updateAnimation(vehicle, animationTimerRef, deltaTime) {
 
     if (vehicle.state === State.STOP) {
       vehicle.frame = Frame.IDLE;
       return;
     }
 
-    //アニメーションタイマーだよ。8フレームごとにアニメーションフレームを変えてね。
-    animationTimerRef.current++;
+    //アニメーションタイマーだよ。120msごとにアニメーションフレームを変えてね。
+    animationTimerRef.current += deltaTime * 1000;
 
-    if (animationTimerRef.current >= 8) {
+    if (animationTimerRef.current >= 120) {
 
       vehicle.frame =
         vehicle.frame === Frame.IDLE
           ? Frame.MOVE
           : Frame.IDLE;
 
-      animationTimerRef.current = 0;
+      animationTimerRef.current -= 120;
     }
   }
 
@@ -1319,7 +1319,7 @@ function GameView() {
       const distance = Math.hypot(dx, dy);
 
       updateDirection(vehicle, dx, dy);
-      updateAnimation(vehicle, animationTimerRef);
+      updateAnimation(vehicle, animationTimerRef, deltaTime);
       updatePosition(vehicle, master, dx, dy, distance, deltaTime);
       updateColoPuddleCollision(vehicle);
       updateEffect(vehicle, now);
