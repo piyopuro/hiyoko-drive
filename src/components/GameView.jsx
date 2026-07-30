@@ -281,7 +281,7 @@ const Railway = {
   TRAIN_Y: 920,
   TRAIN_WIDTH: 1344,
   TRAIN_HEIGHT: 128,
-  TRAIN_SPEED: 180,
+  TRAIN_SPEED: 360,
 
   //踏切を押してから電車が発車するまで
   START_DELAY: 1200,
@@ -1299,19 +1299,20 @@ function GameView() {
     }
   }
 
-  //現場監督
-  function update(now, deltaTime) {
+  //車移動部署
+  function updateVehicle(now, deltaTime) {
     setVehicles((prevVehicles) => {
       const newVehicles = [...prevVehicles];
-      const vehicle = { //念のためぜーんぶコピーするよ！
+
+      const vehicle = {
         ...newVehicles[0],
         position: { ...newVehicles[0].position },
         target: { ...newVehicles[0].target },
         transform: { ...newVehicles[0].transform },
         effect: { ...newVehicles[0].effect },
       };
-      const master = vehicleMaster[vehicle.type];
 
+      const master = vehicleMaster[vehicle.type];
 
       const dx = vehicle.target.x - vehicle.position.x;
       const dy = vehicle.target.y - vehicle.position.y;
@@ -1322,14 +1323,18 @@ function GameView() {
       updatePosition(vehicle, master, dx, dy, distance, deltaTime);
       updateColoPuddleCollision(vehicle);
       updateEffect(vehicle, now);
-      updateVehicleMenu(now);
-      updateCrossing(now);
-      updateTrain(now, deltaTime);
 
       newVehicles[0] = vehicle;
-
       return newVehicles;
     });
+  }
+
+  //現場監督
+  function update(now, deltaTime) {
+    updateVehicle(now, deltaTime);
+    updateVehicleMenu(now);
+    updateCrossing(now);
+    updateTrain(now, deltaTime);
 
     const ctx = ctxRef.current;
 
@@ -1472,8 +1477,12 @@ function GameView() {
   useEffect(() => {
     let animationFrameId;
     let previousTime = null;
+    let isRunning = true;
 
     function gameLoop(now) {
+      if (!isRunning) {
+        return;
+      }
 
       //FPSチェック
       const fpsData = fpsDataRef.current;
