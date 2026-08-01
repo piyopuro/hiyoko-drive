@@ -316,6 +316,40 @@ const TrainPassenger = {
   variants: {
     hiyoko: {
       imageKey: "tHiyoko",
+      weight: 5,
+
+      frameWidth: 96,
+      frameHeight: 80,
+
+      introFrames: [0, 1, 2],
+      loopFrames: [3, 4, 5, 4],
+    },
+
+    cat01: {
+      imageKey: "tCat01",
+      weight: 1,
+
+      frameWidth: 96,
+      frameHeight: 80,
+
+      introFrames: [0, 1, 2],
+      loopFrames: [3, 4, 5, 4],
+    },
+
+    cat02: {
+      imageKey: "tCat02",
+      weight: 1,
+
+      frameWidth: 96,
+      frameHeight: 80,
+
+      introFrames: [0, 1, 2],
+      loopFrames: [3, 4, 5, 4],
+    },
+
+    cat03: {
+      imageKey: "tCat03",
+      weight: 1,
 
       frameWidth: 96,
       frameHeight: 80,
@@ -438,6 +472,9 @@ function GameView() {
     crossing01: null,
     tEffect01: null,
     tHiyoko: null,
+    tCat01: null,
+    tCat02: null,
+    tCat03: null,
 
     puddle01: null,
     puddle02: null,
@@ -989,7 +1026,11 @@ function GameView() {
       if (isPointInsideRect(x, y, trainRect)) {
 
         const carIndex = getTappedTrainCarIndex(x); //車両チェック
-        const isNewPassenger = createTrainPassenger(carIndex, now);  //乗客いるかどうかチェック
+        //乗客いるかどうかチェック
+        const {
+          isNewPassenger,
+          passenger,
+        } = createTrainPassenger(carIndex, now);  
 
         if (isNewPassenger) {
           soundManagerRef.current.play("trainHorn01");
@@ -1304,6 +1345,30 @@ function GameView() {
     }
   }
 
+  //誰が乗ってるか決める係
+  function getRandomTrainPassengerVariant() {
+    const variants = Object.entries(
+      TrainPassenger.variants
+    );    
+
+    const totalWeight = variants.reduce(
+      (sum, [, variant]) => sum + variant.weight,
+      0
+    );    
+
+    let random = Math.random() * totalWeight;
+
+    for (const [key, variant] of variants) {
+      random -= variant.weight;
+
+      if (random < 0) {
+        return key;
+      }
+    }
+
+    return variants[0][0];
+  }
+
   //電車に乗客を出す係
   function createTrainPassenger(carIndex, now) {
     const passengers = trainPassengersRef.current;
@@ -1317,20 +1382,28 @@ function GameView() {
 
     //同じ車両をもう一度押したら最初から
     if (existingPassenger) {
-      existingPassenger.variant = "hiyoko";
       existingPassenger.startTime = now;
-      return false;
+
+      return {
+        isNewPassenger: false,
+        passenger: existingPassenger,
+      };
     }
 
-    passengers.push({
+    const newPassenger = {
       type: "trainPassenger",
-      variant: "hiyoko",
+      variant: getRandomTrainPassengerVariant(),
 
       carIndex,
       startTime: now,
-    });
+    };
 
-    return true;
+    passengers.push(newPassenger);
+
+    return {
+      isNewPassenger: true,
+      passenger: newPassenger,
+    };
   }
 
   //乗客アニメフレームNo.決定係
@@ -1689,6 +1762,9 @@ function GameView() {
     const crossing01 = new Image();
     const tEffect01 = new Image();
     const tHiyoko = new Image();
+    const tCat01 = new Image();
+    const tCat02 = new Image();
+    const tCat03 = new Image();
 
     const puddle01 = new Image();
     const puddle02 = new Image();
@@ -1728,6 +1804,9 @@ function GameView() {
     imagesRef.current.crossing01 = crossing01;
     imagesRef.current.tEffect01 = tEffect01;
     imagesRef.current.tHiyoko = tHiyoko;
+    imagesRef.current.tCat01 = tCat01;
+    imagesRef.current.tCat02 = tCat02;
+    imagesRef.current.tCat03 = tCat03;
 
     //画像の場所はここ。
     background.src = `${import.meta.env.BASE_URL}images/background01.png`;
@@ -1755,6 +1834,9 @@ function GameView() {
     crossing01.src = `${import.meta.env.BASE_URL}images/crossing01.png`;
     tEffect01.src = `${import.meta.env.BASE_URL}images/tEffect01.png`;
     tHiyoko.src = `${import.meta.env.BASE_URL}images/tHiyoko.png`;
+    tCat01.src = `${import.meta.env.BASE_URL}images/tCat01.png`;
+    tCat02.src = `${import.meta.env.BASE_URL}images/tCat02.png`;
+    tCat03.src = `${import.meta.env.BASE_URL}images/tCat03.png`;
 
     let loaded = 0;
 
@@ -1762,7 +1844,7 @@ function GameView() {
     function imageLoaded() {
       loaded++;
 
-      if (loaded === 25) {
+      if (loaded === 28) {
         draw(ctx, performance.now());
       }
     }
@@ -1793,6 +1875,9 @@ function GameView() {
     crossing01.onload = imageLoaded;
     tEffect01.onload = imageLoaded;
     tHiyoko.onload = imageLoaded;
+    tCat01.onload = imageLoaded;
+    tCat02.onload = imageLoaded;
+    tCat03.onload = imageLoaded;
 
   }, []);
 
@@ -1907,7 +1992,7 @@ function GameView() {
         "passengerAppear01",
         `${import.meta.env.BASE_URL}sounds/passengerAppear01.mp3`
       ),
-      
+
     ])
       .then(() => {
         console.log("効果音の読み込み完了");
