@@ -294,7 +294,7 @@ const Railway = {
   TRAIN_Y: 920,
   TRAIN_WIDTH: 1344,
   TRAIN_HEIGHT: 128,
-  TRAIN_SPEED: 360,
+  TRAIN_SPEED: 240,
 
   //踏切を押してから電車が発車するまで
   START_DELAY: 1200,
@@ -303,6 +303,26 @@ const Railway = {
     offsetY: 55,
     width: 1310,
     height: 30,
+  },
+};
+
+//電車の乗客の情報だよ。
+const TrainPassenger = {
+  CAR_WIDTH: 448,
+
+  FRAME_INTERVAL: 140,
+  BOTTOM_Y_FROM_TRAIN_TOP: 69,
+
+  variants: {
+    hiyoko: {
+      imageKey: "tHiyoko",
+
+      frameWidth: 96,
+      frameHeight: 80,
+
+      introFrames: [0, 1, 2],
+      loopFrames: [3, 4, 5, 4],
+    },
   },
 };
 
@@ -367,7 +387,8 @@ function GameView() {
     },
   ]);
 
-  //========電車管理人========
+  //========電車========
+  //車両管理人
   const railwayRef = useRef({
     crossing: {
       isRinging: false,
@@ -390,6 +411,11 @@ function GameView() {
       startTime: 0,
     },
   });
+
+  //乗客管理人
+  const trainPassengersRef = useRef([]);
+
+
 
   //タップエフェクト管理人
   const tapEffectsRef = useRef([]);
@@ -668,8 +694,77 @@ function GameView() {
         size
       );
     }
-  }  
-  
+  }
+
+  //電車の乗客描画係
+  function drawTrainPassengers(ctx, now) {
+    const train = railwayRef.current.train;
+    if (!train.isRunning) {
+      return;
+    }
+
+    const trainLeft =
+      train.x - Railway.TRAIN_WIDTH / 2;
+
+    const trainTop =
+      train.y - Railway.TRAIN_HEIGHT / 2;
+
+    for (
+      const passenger of trainPassengersRef.current
+    ) {
+      //種類
+      const variant =
+        TrainPassenger.variants[passenger.variant];
+      if (!variant) {
+        continue;
+      }
+
+      //画像名
+      const image =
+        imagesRef.current[variant.imageKey];
+      if (!image) {
+        continue;
+      }
+
+      const frameWidth = variant.frameWidth;
+      const frameHeight = variant.frameHeight;
+
+      const frame =
+        getTrainPassengerFrame(passenger, now);
+
+      const sourceX =
+        frame * frameWidth;
+      const sourceY = 0;
+
+      const carCenterX =
+        trainLeft +
+        passenger.carIndex * TrainPassenger.CAR_WIDTH +
+        TrainPassenger.CAR_WIDTH / 2;
+
+      const passengerBottomY =
+        trainTop +
+        TrainPassenger.BOTTOM_Y_FROM_TRAIN_TOP;
+
+      const passengerX = carCenterX - frameWidth / 2;
+
+      const passengerY = passengerBottomY - frameHeight;
+
+      ctx.drawImage(
+        image,
+
+        sourceX,
+        sourceY,
+        frameWidth,
+        frameHeight,
+
+        passengerX,
+        passengerY,
+        frameWidth,
+        frameHeight
+      );
+    }
+  }
+
   //メニュー描画係
   function drawVehicleMenu(ctx, now) {
     const menu = vehicleMenuRef.current;
@@ -861,10 +956,12 @@ function GameView() {
 
     //電車描画係
     drawTrain(ctx);
+    //電車の乗客描画係
+    drawTrainPassengers(ctx, now);
     //踏切描画係
     drawCrossing(ctx);
     //タップエフェクト描画係
-    drawTapEffects(ctx, now);    
+    drawTapEffects(ctx, now);
     //メニュー描画係
     drawVehicleMenu(ctx, now);
     drawVehicleMenuTab(ctx);
@@ -884,15 +981,26 @@ function GameView() {
     const y = event.nativeEvent.offsetY / scale;
 
     const now = performance.now();
-    
+
     //走っている電車を触ったかな？
     const train = railwayRef.current.train;
     if (train.isRunning) {
       const trainRect = getTrainRect();
       if (isPointInsideRect(x, y, trainRect)) {
-        soundManagerRef.current.play("trainHorn01");
+
+        const carIndex = getTappedTrainCarIndex(x); //車両チェック
+        const isNewPassenger = createTrainPassenger(carIndex, now);  //乗客いるかどうかチェック
+
+        if (isNewPassenger) {
+          soundManagerRef.current.play("trainHorn01");
+        } else {
+          soundManagerRef.current.play("passengerAppear01");
+        }
+
         createTapSparkles(x, y, now);  //きらきら～
+        createTrainPassenger(carIndex, now);  //乗客表示
         return;
+
       }
     }
 
@@ -1112,6 +1220,25 @@ function GameView() {
     };
   }
 
+  //何両目か判定
+  function getTappedTrainCarIndex(tapX) {
+    const train = railwayRef.current.train;
+
+    const trainLeft =
+      train.x - Railway.TRAIN_WIDTH / 2;
+
+    const localX =
+      tapX - trainLeft;
+
+    const carIndex =
+      Math.floor(localX / TrainPassenger.CAR_WIDTH);
+
+    return Math.max(
+      0,
+      Math.min(carIndex, 2)
+    );
+  }
+
   //電車出発準備係
   function startTrain(now) {
     const train = railwayRef.current.train;
@@ -1121,6 +1248,8 @@ function GameView() {
     if (train.isRunning || train.isWaiting) {
       return;
     }
+    //乗客リセット
+    trainPassengersRef.current = [];
 
     //左右指示係
     train.direction = Math.random() < 0.5 ? 1 : -1;
@@ -1174,6 +1303,66 @@ function GameView() {
       });
     }
   }
+
+  //電車に乗客を出す係
+  function createTrainPassenger(carIndex, now) {
+    const passengers = trainPassengersRef.current;
+
+    //乗客チェック
+    const existingPassenger =
+      passengers.find(
+        (passenger) =>
+          passenger.carIndex === carIndex
+      );
+
+    //同じ車両をもう一度押したら最初から
+    if (existingPassenger) {
+      existingPassenger.variant = "hiyoko";
+      existingPassenger.startTime = now;
+      return false;
+    }
+
+    passengers.push({
+      type: "trainPassenger",
+      variant: "hiyoko",
+
+      carIndex,
+      startTime: now,
+    });
+
+    return true;
+  }
+
+  //乗客アニメフレームNo.決定係
+  function getTrainPassengerFrame(passenger, now) {
+    const variant =
+      TrainPassenger.variants[passenger.variant];
+
+    const elapsed =
+      now - passenger.startTime;
+
+    const step = Math.floor(
+      elapsed / TrainPassenger.FRAME_INTERVAL
+    );
+
+    const introFrames =
+      variant.introFrames;
+
+    if (step < introFrames.length) {
+      return introFrames[step];
+    }
+
+    const loopFrames =
+      variant.loopFrames;
+
+    const loopStep =
+      step - introFrames.length;
+
+    return loopFrames[
+      loopStep % loopFrames.length
+    ];
+  }
+
   //タップエフェクト更新係
   function updateTapEffects(now) {
     tapEffectsRef.current =
@@ -1334,6 +1523,8 @@ function GameView() {
     if (passedRightSide || passedLeftSide) {
       train.isRunning = false;
 
+      //乗客おしまい
+      trainPassengersRef.current = [];
       //踏切おしまい
       crossing.isRinging = false;
       crossing.frame = 0;
@@ -1711,6 +1902,12 @@ function GameView() {
         "trainHorn01",
         `${import.meta.env.BASE_URL}sounds/trainHorn01.mp3`
       ),
+
+      soundManager.load(
+        "passengerAppear01",
+        `${import.meta.env.BASE_URL}sounds/passengerAppear01.mp3`
+      ),
+      
     ])
       .then(() => {
         console.log("効果音の読み込み完了");
