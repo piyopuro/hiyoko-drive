@@ -23,6 +23,19 @@ const Effect = {
   AMOUNT: 0.2,
 }
 
+const TapEffect = {
+  DURATION: 400,
+
+  IMAGE_WIDTH: 64,
+  IMAGE_HEIGHT: 64,
+
+  MIN_SIZE: 35,
+  MAX_SIZE: 65,
+
+  MIN_DISTANCE: 20,
+  MAX_DISTANCE: 75,
+};
+
 //のりものたちの基本情報
 const vehicleMaster = {
   bus: {
@@ -378,6 +391,9 @@ function GameView() {
     },
   });
 
+  //タップエフェクト管理人
+  const tapEffectsRef = useRef([]);
+
   const imagesRef = useRef({
     background: null,
 
@@ -394,6 +410,8 @@ function GameView() {
 
     train01: null,
     crossing01: null,
+    tEffect01: null,
+    tHiyoko: null,
 
     puddle01: null,
     puddle02: null,
@@ -615,6 +633,43 @@ function GameView() {
     );
   }
 
+  //タップエフェクト描画係
+  function drawTapEffects(ctx, now) {
+    for (const effect of tapEffectsRef.current) {
+      if (effect.type !== "sparkle") {
+        continue;
+      }
+
+      const image =
+        imagesRef.current.tEffect01;
+      if (!image) {
+        continue;
+      }
+
+      const elapsed =
+        now - effect.startTime;
+      const progress = Math.min(
+        elapsed / effect.duration,
+        1
+      );
+
+      const scale =
+        Math.sin(progress * Math.PI);
+      const size =
+        effect.maxSize * scale;
+
+      ctx.drawImage(
+        image,
+
+        effect.x - size / 2,
+        effect.y - size / 2,
+
+        size,
+        size
+      );
+    }
+  }  
+  
   //メニュー描画係
   function drawVehicleMenu(ctx, now) {
     const menu = vehicleMenuRef.current;
@@ -808,7 +863,8 @@ function GameView() {
     drawTrain(ctx);
     //踏切描画係
     drawCrossing(ctx);
-
+    //タップエフェクト描画係
+    drawTapEffects(ctx, now);    
     //メニュー描画係
     drawVehicleMenu(ctx, now);
     drawVehicleMenuTab(ctx);
@@ -826,6 +882,19 @@ function GameView() {
     //座標チェック
     const x = event.nativeEvent.offsetX / scale;
     const y = event.nativeEvent.offsetY / scale;
+
+    const now = performance.now();
+    
+    //走っている電車を触ったかな？
+    const train = railwayRef.current.train;
+    if (train.isRunning) {
+      const trainRect = getTrainRect();
+      if (isPointInsideRect(x, y, trainRect)) {
+        soundManagerRef.current.play("trainHorn01");
+        createTapSparkles(x, y, now);  //きらきら～
+        return;
+      }
+    }
 
     const crossingRect = getCrossingRect();
 
@@ -1011,7 +1080,7 @@ function GameView() {
     };
   }
 
-  //メニュー付箋おさわりチェック
+  //メニュー付箋・電車おさわりチェック
   function isPointInsideRect(x, y, rect) {
     return (
       x >= rect.x &&
@@ -1028,6 +1097,18 @@ function GameView() {
       y: Railway.CROSSING_Y - Railway.CROSSING_HEIGHT / 2,
       width: Railway.CROSSING_WIDTH,
       height: Railway.CROSSING_HEIGHT,
+    };
+  }
+
+  //電車おさわり判定
+  function getTrainRect() {
+    const train = railwayRef.current.train;
+
+    return {
+      x: train.x - Railway.TRAIN_WIDTH / 2,
+      y: train.y - Railway.TRAIN_HEIGHT / 2,
+      width: Railway.TRAIN_WIDTH,
+      height: Railway.TRAIN_HEIGHT,
     };
   }
 
@@ -1054,6 +1135,54 @@ function GameView() {
 
     //踏切音
     soundManagerRef.current.play("crossing");
+  }
+
+  //タップ位置にキラキラを作る係
+  function createTapSparkles(x, y, now) {
+    const sparkleCount =
+      Math.random() < 0.5 ? 3 : 4;
+
+    for (let i = 0; i < sparkleCount; i++) {
+      const angle =
+        Math.random() * Math.PI * 2;
+
+      const distance = getRandomNumber(
+        TapEffect.MIN_DISTANCE,
+        TapEffect.MAX_DISTANCE
+      );
+
+      const sparkleX =
+        x + Math.cos(angle) * distance;
+
+      const sparkleY =
+        y + Math.sin(angle) * distance;
+
+      tapEffectsRef.current.push({
+        type: "sparkle",
+        variant: "yellow",
+
+        x: sparkleX,
+        y: sparkleY,
+
+        startTime: now,
+        duration: TapEffect.DURATION,
+
+        maxSize: getRandomNumber(
+          TapEffect.MIN_SIZE,
+          TapEffect.MAX_SIZE
+        ),
+      });
+    }
+  }
+  //タップエフェクト更新係
+  function updateTapEffects(now) {
+    tapEffectsRef.current =
+      tapEffectsRef.current.filter((effect) => {
+        const elapsed =
+          now - effect.startTime;
+
+        return elapsed < effect.duration;
+      });
   }
 
   //メニュー開け閉めチェック係
@@ -1335,6 +1464,7 @@ function GameView() {
     updateVehicleMenu(now);
     updateCrossing(now);
     updateTrain(now, deltaTime);
+    updateTapEffects(now);
 
     const ctx = ctxRef.current;
 
@@ -1366,6 +1496,8 @@ function GameView() {
 
     const train01 = new Image();
     const crossing01 = new Image();
+    const tEffect01 = new Image();
+    const tHiyoko = new Image();
 
     const puddle01 = new Image();
     const puddle02 = new Image();
@@ -1403,6 +1535,8 @@ function GameView() {
     imagesRef.current.selectAnimation01 = selectAnimation01;
     imagesRef.current.train01 = train01;
     imagesRef.current.crossing01 = crossing01;
+    imagesRef.current.tEffect01 = tEffect01;
+    imagesRef.current.tHiyoko = tHiyoko;
 
     //画像の場所はここ。
     background.src = `${import.meta.env.BASE_URL}images/background01.png`;
@@ -1428,6 +1562,8 @@ function GameView() {
     selectAnimation01.src = `${import.meta.env.BASE_URL}images/selectAnimation01.png`;
     train01.src = `${import.meta.env.BASE_URL}images/train01.png`;
     crossing01.src = `${import.meta.env.BASE_URL}images/crossing01.png`;
+    tEffect01.src = `${import.meta.env.BASE_URL}images/tEffect01.png`;
+    tHiyoko.src = `${import.meta.env.BASE_URL}images/tHiyoko.png`;
 
     let loaded = 0;
 
@@ -1435,7 +1571,7 @@ function GameView() {
     function imageLoaded() {
       loaded++;
 
-      if (loaded === 23) {
+      if (loaded === 25) {
         draw(ctx, performance.now());
       }
     }
@@ -1464,6 +1600,8 @@ function GameView() {
     selectAnimation01.onload = imageLoaded;
     train01.onload = imageLoaded;
     crossing01.onload = imageLoaded;
+    tEffect01.onload = imageLoaded;
+    tHiyoko.onload = imageLoaded;
 
   }, []);
 
@@ -1567,6 +1705,11 @@ function GameView() {
       soundManager.load(
         "crossing",
         `${import.meta.env.BASE_URL}sounds/crossing.mp3`
+      ),
+
+      soundManager.load(
+        "trainHorn01",
+        `${import.meta.env.BASE_URL}sounds/trainHorn01.mp3`
       ),
     ])
       .then(() => {
