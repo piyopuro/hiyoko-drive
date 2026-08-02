@@ -56,6 +56,12 @@ const NPCAction = {
   JUMP_HEIGHT: 85,
 };
 
+const NPCBehavior = {
+  AVOID_DISTANCE: 170,       //この距離までバスが来たら逃げる
+  FLEE_DISTANCE: 220,        //どれくらい先まで逃げるか
+  FLEE_SPEED_MULTIPLIER: 2.5, //普段の何倍で走るか
+};
+
 const NPCWalkArea = {
   LEFT: 100,
   RIGHT: 1820,
@@ -256,6 +262,14 @@ function getRandomNumber(min, max) {
   return Math.random() * (max - min) + min;
 }
 
+//ここからここまで
+function clamp(value, min, max) {
+  return Math.max(
+    min,
+    Math.min(value, max)
+  );
+}
+
 //ひよこを作る係
 function createNPC(type, startX, startY) {
   const master = npcMaster[type];
@@ -291,6 +305,10 @@ function createNPC(type, startX, startY) {
     direction: NPCDirection.FRONT,
     state: NPCState.IDLE,
 
+    behavior: {
+      type: "wander",
+    },
+
     frame: 0,
     animationFrameIndex: 0,
     animationTimer: 0,
@@ -307,6 +325,7 @@ function createNPC(type, startX, startY) {
         master.waitTime.min,
         master.waitTime.max
       ),
+
   };
 }
 
@@ -1719,15 +1738,14 @@ function GameView() {
       type: "jump",
       startTime: now,
 
-      duration: 
-        NPCAction.JUMP_DURATION + 
+      duration:
+        NPCAction.JUMP_DURATION +
         NPCAction.LANDING_DURATION,
     };
     npc.frame = 0;    //ジャンプ中は立ち姿のコマにする
   }
 
   //ジャンプ中にひよこを変形させる係
-
   function getNPCJumpTransform(npc, now) {
     if (!isNPCJumping(npc)) {
       return {
@@ -1790,7 +1808,7 @@ function GameView() {
     const landingProgress =
       Math.min(
         landingElapsed /
-          NPCAction.LANDING_DURATION,
+        NPCAction.LANDING_DURATION,
         1
       );
 
@@ -1817,6 +1835,85 @@ function GameView() {
       offsetY: 0,
       scaleY,
     };
+  }
+
+  //「ひよこ逃げて！」係
+  function tryStartNPCFlee(npc, now) {
+    const vehicle =
+      vehiclesRef.current[0];
+    if (!vehicle) {
+      return;
+    }
+
+    //今回は走っているバスだけ避ける
+    if (
+      vehicle.type !== "bus" ||
+      vehicle.state !== State.MOVE
+    ) {
+      return;
+    }
+
+    //すでに逃走中なら、今の逃げ先を維持
+    if (
+      npc.behavior.type === "flee" &&
+      now < npc.behavior.until
+    ) {
+      return;
+    }
+
+    //ひよこの方向はどっちだ？
+    let dx = npc.position.x - vehicle.position.x;
+    let dy = npc.position.y - vehicle.position.y;
+    let distance = Math.hypot(dx, dy);
+
+    //まだ遠ければ逃げない
+    if (
+      distance >=
+      NPCBehavior.AVOID_DISTANCE
+    ) {
+      return;
+    }
+
+    //完全に同じ位置だった場合の安全策
+    if (distance === 0) {
+      const angle = Math.random() * Math.PI * 2;
+
+      dx = Math.cos(angle);
+      dy = Math.sin(angle);
+      distance = 1;
+    }
+
+    //バスと反対方向を求める
+    const awayX = dx / distance;
+    const awayY = dy / distance;
+
+    npc.target.x = clamp(
+      npc.position.x + awayX * NPCBehavior.FLEE_DISTANCE,
+
+      NPCWalkArea.LEFT,
+      NPCWalkArea.RIGHT
+    );
+
+    npc.target.y = clamp(
+      npc.position.y + awayY * NPCBehavior.FLEE_DISTANCE,
+
+      NPCWalkArea.TOP,
+      NPCWalkArea.BOTTOM
+    );
+
+    npc.behavior.type = "flee";
+    npc.behavior.until = now + NPCBehavior.FLEE_DURATION;
+
+    npc.state = NPCState.WALK;
+
+    npc.animationTimer = 0;
+    npc.animationFrameIndex = 0;
+
+    const master =
+      npcMaster[npc.type];
+
+    npc.frame =
+      master.walkFrames[0];
   }
 
   //ひよこの次の行き先を決める係
@@ -1907,6 +2004,17 @@ function GameView() {
         }
       }
 
+      //逃走時間が終わったら通常状態へ戻す
+      if (
+        npc.behavior.type === "flee" &&
+        now >= npc.behavior.until
+      ) {
+        npc.behavior.type = "wander";
+      }
+
+      //走っているバスが近くにいるか確認
+      tryStartNPCFlee(npc, now);
+
       if (npc.state === NPCState.IDLE) {
         npc.frame = 0;
 
@@ -1927,19 +2035,34 @@ function GameView() {
         npc.position.x = npc.target.x;
         npc.position.y = npc.target.y;
 
+        const wasFleeing =
+         npc.behavior.type === "flee";
+
+        npc.behavior.type = "wander";
         npc.state = NPCState.IDLE;
         npc.frame = 0;
 
         npc.waitUntil = now +
-          getRandomNumber(
-            master.waitTime.min,
-            master.waitTime.max
-          );
+        (
+            wasFleeing
+              ? getRandomNumber(300, 700)
+              : getRandomNumber(
+                  master.waitTime.min,
+                  master.waitTime.max
+                )          
+        );
 
         continue;
       }
 
-      const moveDistance = master.speed * deltaTime;
+      const speed =
+        npc.behavior.type === "flee"
+          ? master.speed *
+          NPCBehavior.FLEE_SPEED_MULTIPLIER
+          : master.speed;
+
+      const moveDistance =
+        speed * deltaTime;
 
       if (moveDistance >= distance) {
         npc.position.x = npc.target.x;
