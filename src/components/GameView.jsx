@@ -50,6 +50,12 @@ const NPCDirection = {
   LEFT: "left",
 };
 
+const NPCAction = {
+  JUMP_DURATION: 500,
+  LANDING_DURATION: 230,
+  JUMP_HEIGHT: 85,
+};
+
 const NPCWalkArea = {
   LEFT: 100,
   RIGHT: 1820,
@@ -84,6 +90,12 @@ const npcMaster = {
     waitTime: {
       min: 1000,
       max: 3000,
+    },
+
+    shadow: {
+      offsetY: 0,
+      width: 18,
+      height: 6,
     },
   },
 
@@ -282,6 +294,12 @@ function createNPC(type, startX, startY) {
     frame: 0,
     animationFrameIndex: 0,
     animationTimer: 0,
+
+    action: {
+      type: null,
+      startTime: 0,
+      duration: 0,
+    },
 
     waitUntil:
       performance.now() +
@@ -728,11 +746,19 @@ function GameView() {
   }
 
   //ひよこを1羽描く係
-  function drawNPC(ctx, npc) {
+  function drawNPC(ctx, npc, now) {
     const master = npcMaster[npc.type];
     if (!master) {
       return;
     }
+
+    drawShadow(
+      ctx,
+      npc.position.x,
+      npc.position.y,
+      master.shadow.width,
+      master.shadow.height
+    );
 
     const image = imagesRef.current[master.imageKey];
     if (!image) {
@@ -743,6 +769,23 @@ function GameView() {
     const sx = npc.frame * master.frameWidth;
     const sy = row * master.frameHeight;
 
+    const jumpTransform = getNPCJumpTransform(npc, now);
+
+    ctx.save();
+
+    //NPCの足元へ移動
+    ctx.translate(
+      npc.position.x,
+      npc.position.y +
+      jumpTransform.offsetY
+    );
+
+    //足元を基準に縦方向へ変形
+    ctx.scale(
+      1,
+      jumpTransform.scaleY
+    );
+
     ctx.drawImage(
       image,
 
@@ -751,18 +794,20 @@ function GameView() {
       master.frameWidth,
       master.frameHeight,
 
-      npc.position.x - master.drawWidth / 2,
-      npc.position.y - master.drawHeight,
+      -master.drawWidth / 2,
+      -master.drawHeight,
 
       master.drawWidth,
       master.drawHeight
     );
+
+    ctx.restore();
   }
 
   //全てのひよこたちを描く係
-  function drawNPCs(ctx) {
+  function drawNPCs(ctx, now) {
     for (const npc of npcsRef.current) {
-      drawNPC(ctx, npc);
+      drawNPC(ctx, npc, now);
     }
   }
   //のりもの描画係
@@ -1158,7 +1203,7 @@ function GameView() {
     }
 
     //NPC描画係
-    drawNPCs(ctx);
+    drawNPCs(ctx, now);
 
     //動かすのりもの描画係
     const vehicle = vehiclesRef.current[0];
@@ -1200,6 +1245,18 @@ function GameView() {
     const y = event.nativeEvent.offsetY / scale;
 
     const now = performance.now();
+
+    //ひよこを触ったかな？
+    const tappedNPC =
+      getTappedNPC(x, y);
+
+    if (tappedNPC) {
+      startNPCJump(tappedNPC, now);
+      soundManagerRef.current.play(
+        "hiyokoJump"
+      );
+      return;
+    }
 
     //走っている電車を触ったかな？
     const train = railwayRef.current.train;
@@ -1305,14 +1362,14 @@ function GameView() {
 
     if (Math.abs(dx) > Math.abs(dy)) {
       vehicle.direction =
-        dx >= 0 
-        ? Direction.RIGHT
-        : Direction.LEFT;
+        dx >= 0
+          ? Direction.RIGHT
+          : Direction.LEFT;
     } else {
       vehicle.direction =
-        dy >= 0 
-        ? Direction.FRONT
-        : Direction.BACK;
+        dy >= 0
+          ? Direction.FRONT
+          : Direction.BACK;
     }
   }
 
@@ -1378,6 +1435,39 @@ function GameView() {
     });
   }
 
+  //タップしたひよこを探す係
+  function getTappedNPC(x, y) {
+    //後ろから調べると、手前に描かれたNPCが優先される
+    for (
+      let i = npcsRef.current.length - 1;
+      i >= 0;
+      i--
+    ) {
+      const npc = npcsRef.current[i];
+      const master = npcMaster[npc.type];
+
+      if (!master) {
+        continue;
+      }
+
+      const left = npc.position.x - master.drawWidth / 2;
+      const right = npc.position.x + master.drawWidth / 2;
+      const top = npc.position.y - master.drawHeight;
+      const bottom = npc.position.y;
+
+      const isInside =
+        x >= left &&
+        x <= right &&
+        y >= top &&
+        y <= bottom;
+
+      if (isInside) {
+        return npc;
+      }
+    }
+
+    return null;
+  }
 
   //メニュー付箋位置情報システム
   function getVehicleMenuTabRect() {
@@ -1618,6 +1708,117 @@ function GameView() {
       });
   }
 
+  //ひよこがジャンプ中かチェックする係
+  function isNPCJumping(npc) {
+    return npc.action.type === "jump";
+  }
+
+  //ひよこジャンプ開始係
+  function startNPCJump(npc, now) {
+    npc.action = {
+      type: "jump",
+      startTime: now,
+
+      duration: 
+        NPCAction.JUMP_DURATION + 
+        NPCAction.LANDING_DURATION,
+    };
+    npc.frame = 0;    //ジャンプ中は立ち姿のコマにする
+  }
+
+  //ジャンプ中にひよこを変形させる係
+
+  function getNPCJumpTransform(npc, now) {
+    if (!isNPCJumping(npc)) {
+      return {
+        offsetY: 0,
+        scaleY: 1,
+      };
+    }
+
+    const elapsed =
+      now - npc.action.startTime;
+
+    //ジャンプ中
+    if (elapsed < NPCAction.JUMP_DURATION) {
+      const jumpProgress =
+        elapsed / NPCAction.JUMP_DURATION;
+
+      const offsetY =
+        -Math.sin(jumpProgress * Math.PI) *
+        NPCAction.JUMP_HEIGHT;
+
+      let scaleY = 1;
+
+      if (jumpProgress < 0.15) {
+        //跳ぶ前に潰れる
+        const t =
+          jumpProgress / 0.15;
+
+        scaleY =
+          1 + (0.5 - 1) * t;
+
+      } else if (jumpProgress < 0.35) {
+        //潰れた状態から伸びる
+        const t =
+          (jumpProgress - 0.15) /
+          (0.35 - 0.15);
+
+        scaleY =
+          0.5 + (1.18 - 0.5) * t;
+
+      } else if (jumpProgress < 0.5) {
+        //頂点で100％へ戻る
+        const t =
+          (jumpProgress - 0.35) /
+          (0.5 - 0.35);
+
+        scaleY =
+          1.18 + (1 - 1.18) * t;
+      }
+
+      return {
+        offsetY,
+        scaleY,
+      };
+    }
+
+    //着地後
+    const landingElapsed =
+      elapsed - NPCAction.JUMP_DURATION;
+
+    const landingProgress =
+      Math.min(
+        landingElapsed /
+          NPCAction.LANDING_DURATION,
+        1
+      );
+
+    let scaleY;
+
+    if (landingProgress < 0.35) {
+      //地面に着いてから潰れる
+      const t =
+        landingProgress / 0.35;
+
+      scaleY =
+        1 + (0.5 - 1) * t;
+    } else {
+      //潰れたところから元へ戻る
+      const t =
+        (landingProgress - 0.35) /
+        (1 - 0.35);
+
+      scaleY =
+        0.5 + (1 - 0.5) * t;
+    }
+
+    return {
+      offsetY: 0,
+      scaleY,
+    };
+  }
+
   //ひよこの次の行き先を決める係
   function chooseNextNPCTarget(npc) {
     const master = npcMaster[npc.type];
@@ -1681,6 +1882,29 @@ function GameView() {
 
       if (!master) {
         continue;
+      }
+
+      //ジャンプ中
+      if (isNPCJumping(npc)) {
+        const elapsed =
+          now - npc.action.startTime;
+
+        if (elapsed >= npc.action.duration) {
+          npc.action.type = null;
+
+          //歩行中なら歩行アニメーションを再開
+          if (npc.state === NPCState.WALK) {
+            npc.animationTimer = 0;
+            npc.animationFrameIndex = 0;
+            npc.frame = master.walkFrames[0];
+          } else {
+            npc.frame = 0;
+          }
+        } else {
+          //ジャンプ中はその場に止まる
+          npc.frame = 0;
+          continue;
+        }
       }
 
       if (npc.state === NPCState.IDLE) {
@@ -2283,6 +2507,11 @@ function GameView() {
       soundManager.load(
         "passengerAppear01",
         `${import.meta.env.BASE_URL}sounds/passengerAppear01.mp3`
+      ),
+
+      soundManager.load(
+        "hiyokoJump",
+        `${import.meta.env.BASE_URL}sounds/hiyoko_jump.mp3`
       ),
 
     ])
