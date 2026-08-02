@@ -36,7 +36,91 @@ const TapEffect = {
   MAX_DISTANCE: 75,
 };
 
-//のりものたちの基本情報
+//========ひよこたち========
+
+const NPCState = {
+  IDLE: "idle",
+  WALK: "walk",
+};
+
+const NPCDirection = {
+  FRONT: "front",
+  BACK: "back",
+  RIGHT: "right",
+  LEFT: "left",
+};
+
+const NPCWalkArea = {
+  LEFT: 100,
+  RIGHT: 1820,
+  TOP: 120,
+  BOTTOM: 800,
+};
+
+//ひよこたちの基本情報
+const npcMaster = {
+  hiyoko: {
+    imageKey: "npcHiyoko01",
+
+    frameWidth: 64,
+    frameHeight: 64,
+
+    drawWidth: 64,
+    drawHeight: 64,
+
+    speed: 75,
+
+    animationInterval: 180,
+
+    walkFrames: [1, 0, 2, 0],
+
+    directionRows: {
+      front: 0,
+      back: 1,
+      right: 2,
+      left: 3,
+    },
+
+    waitTime: {
+      min: 1000,
+      max: 3000,
+    },
+  },
+
+  /*
+  実装予定
+
+  rareHiyoko: {
+    imageKey: "npcRareHiyoko01",
+
+    frameWidth: 64,
+    frameHeight: 64,
+
+    drawWidth: 64,
+    drawHeight: 64,
+
+    speed: 90,
+
+    animationInterval: 160,
+
+    walkFrames: [1, 0, 2, 0],
+
+    directionRows: {
+      front: 0,
+      back: 1,
+      right: 2,
+      left: 3,
+    },
+
+    waitTime: {
+      min: 800,
+      max: 2000,
+    },
+  },
+  */
+};
+
+//========のりものたちの基本情報========
 const vehicleMaster = {
   bus: {
     width: 256,
@@ -158,6 +242,54 @@ const colorPuddleMaster = [
 //最小値以上、最大値以下のランダムな数を作る係
 function getRandomNumber(min, max) {
   return Math.random() * (max - min) + min;
+}
+
+//ひよこを作る係
+function createNPC(type, startX, startY) {
+  const master = npcMaster[type];
+
+  if (!master) {
+    return null;
+  }
+
+  const x = startX ??
+    getRandomNumber(
+      NPCWalkArea.LEFT,
+      NPCWalkArea.RIGHT
+    );
+  const y = startY ??
+    getRandomNumber(
+      NPCWalkArea.TOP,
+      NPCWalkArea.BOTTOM
+    );
+
+  return {
+    id: crypto.randomUUID(),
+
+    type,
+    position: {
+      x,
+      y,
+    },
+    target: {
+      x,
+      y,
+    },
+
+    direction: NPCDirection.FRONT,
+    state: NPCState.IDLE,
+
+    frame: 0,
+    animationFrameIndex: 0,
+    animationTimer: 0,
+
+    waitUntil:
+      performance.now() +
+      getRandomNumber(
+        master.waitTime.min,
+        master.waitTime.max
+      ),
+  };
 }
 
 //インク池ランダム配置係
@@ -449,10 +581,17 @@ function GameView() {
   //乗客管理人
   const trainPassengersRef = useRef([]);
 
-
-
   //タップエフェクト管理人
   const tapEffectsRef = useRef([]);
+
+  //ひよこ管理人
+  const npcsRef = useRef(null);
+
+  if (!npcsRef.current) {
+    npcsRef.current = [
+      createNPC("hiyoko", 500, 500),
+    ].filter(Boolean);
+  }
 
   const imagesRef = useRef({
     background: null,
@@ -484,6 +623,8 @@ function GameView() {
     puddle06: null,
     puddle07: null,
     puddle08: null,
+
+    npcHiyoko01: null,
 
     menuBackground01: null,
     menuTag01: null,
@@ -586,6 +727,44 @@ function GameView() {
     ctx.fill();
   }
 
+  //ひよこを1羽描く係
+  function drawNPC(ctx, npc) {
+    const master = npcMaster[npc.type];
+    if (!master) {
+      return;
+    }
+
+    const image = imagesRef.current[master.imageKey];
+    if (!image) {
+      return;
+    }
+
+    const row = master.directionRows[npc.direction];
+    const sx = npc.frame * master.frameWidth;
+    const sy = row * master.frameHeight;
+
+    ctx.drawImage(
+      image,
+
+      sx,
+      sy,
+      master.frameWidth,
+      master.frameHeight,
+
+      npc.position.x - master.drawWidth / 2,
+      npc.position.y - master.drawHeight,
+
+      master.drawWidth,
+      master.drawHeight
+    );
+  }
+
+  //全てのひよこたちを描く係
+  function drawNPCs(ctx) {
+    for (const npc of npcsRef.current) {
+      drawNPC(ctx, npc);
+    }
+  }
   //のりもの描画係
   function drawVehicle(ctx, vehicle) {
     const master = vehicleMaster[vehicle.type];
@@ -978,6 +1157,9 @@ function GameView() {
       drawColorPuddle(ctx, puddle);
     }
 
+    //NPC描画係
+    drawNPCs(ctx);
+
     //動かすのりもの描画係
     const vehicle = vehiclesRef.current[0];
     const master = vehicleMaster[vehicle.type];
@@ -1030,7 +1212,7 @@ function GameView() {
         const {
           isNewPassenger,
           passenger,
-        } = createTrainPassenger(carIndex, now);  
+        } = createTrainPassenger(carIndex, now);
 
         if (isNewPassenger) {
           soundManagerRef.current.play("trainHorn01");
@@ -1122,27 +1304,16 @@ function GameView() {
     }
 
     if (Math.abs(dx) > Math.abs(dy)) {
-      if (dx > 0) {
-        vehicle.direction = Direction.RIGHT; //右むけ！
-      } else {
-        vehicle.direction = Direction.LEFT;  //左むけ！
-      }
-
-    } else if (Math.abs(dx) < Math.abs(dy)) {
-      if (dy > 0) {
-        vehicle.direction = Direction.FRONT; //前むけ！
-      } else {
-        vehicle.direction = Direction.BACK;  //後ろむけ！
-      }
-
-    } else {    //45度ななめ方向の時
-      if (dx > 0) {
-        vehicle.direction = Direction.RIGHT; //右むけ！
-      } else {
-        vehicle.direction = Direction.LEFT;  //左むけ！
-      }
+      vehicle.direction =
+        dx >= 0 
+        ? Direction.RIGHT
+        : Direction.LEFT;
+    } else {
+      vehicle.direction =
+        dy >= 0 
+        ? Direction.FRONT
+        : Direction.BACK;
     }
-
   }
 
   //車種変更係
@@ -1349,12 +1520,12 @@ function GameView() {
   function getRandomTrainPassengerVariant() {
     const variants = Object.entries(
       TrainPassenger.variants
-    );    
+    );
 
     const totalWeight = variants.reduce(
       (sum, [, variant]) => sum + variant.weight,
       0
-    );    
+    );
 
     let random = Math.random() * totalWeight;
 
@@ -1445,6 +1616,121 @@ function GameView() {
 
         return elapsed < effect.duration;
       });
+  }
+
+  //ひよこの次の行き先を決める係
+  function chooseNextNPCTarget(npc) {
+    const master = npcMaster[npc.type];
+
+    npc.target.x = getRandomNumber(
+      NPCWalkArea.LEFT,
+      NPCWalkArea.RIGHT
+    );
+
+    npc.target.y = getRandomNumber(
+      NPCWalkArea.TOP,
+      NPCWalkArea.BOTTOM
+    );
+
+    npc.state = NPCState.WALK;
+    npc.animationTimer = 0;
+    npc.animationFrameIndex = 0;
+    npc.frame = master.walkFrames[0];
+  }
+
+  //ひよこの向きを決める係
+  function updateNPCDirection(npc, dx, dy) {
+    if (Math.abs(dx) > Math.abs(dy)) {
+      npc.direction =
+        dx >= 0
+          ? NPCDirection.RIGHT
+          : NPCDirection.LEFT;
+    } else {
+      npc.direction =
+        dy >= 0
+          ? NPCDirection.FRONT
+          : NPCDirection.BACK;
+    }
+  }
+
+  //ひよこの歩き方指導係
+  function updateNPCAnimation(npc, master, deltaTime) {
+    npc.animationTimer += deltaTime * 1000;
+
+    if (npc.animationTimer < master.animationInterval) {
+      return;
+    }
+
+    npc.animationTimer -= master.animationInterval;
+
+    const currentIndex =
+      master.walkFrames.indexOf(npc.frame);
+
+    npc.animationFrameIndex =
+      (npc.animationFrameIndex + 1) %
+      master.walkFrames.length;
+
+    npc.frame =
+      master.walkFrames[npc.animationFrameIndex];
+  }
+
+  //ひよこたちを動かす係
+  function updateNPCs(now, deltaTime) {
+    for (const npc of npcsRef.current) {
+      const master = npcMaster[npc.type];
+
+      if (!master) {
+        continue;
+      }
+
+      if (npc.state === NPCState.IDLE) {
+        npc.frame = 0;
+
+        if (now >= npc.waitUntil) {
+          chooseNextNPCTarget(npc);
+        }
+        continue;
+      }
+
+      const dx = npc.target.x - npc.position.x;
+      const dy = npc.target.y - npc.position.y;
+
+      const distance = Math.hypot(dx, dy);
+
+      updateNPCDirection(npc, dx, dy);
+
+      if (distance < 2) {
+        npc.position.x = npc.target.x;
+        npc.position.y = npc.target.y;
+
+        npc.state = NPCState.IDLE;
+        npc.frame = 0;
+
+        npc.waitUntil = now +
+          getRandomNumber(
+            master.waitTime.min,
+            master.waitTime.max
+          );
+
+        continue;
+      }
+
+      const moveDistance = master.speed * deltaTime;
+
+      if (moveDistance >= distance) {
+        npc.position.x = npc.target.x;
+        npc.position.y = npc.target.y;
+      } else {
+        npc.position.x += (dx / distance) * moveDistance;
+        npc.position.y += (dy / distance) * moveDistance;
+      }
+
+      updateNPCAnimation(
+        npc,
+        master,
+        deltaTime
+      );
+    }
   }
 
   //メニュー開け閉めチェック係
@@ -1725,6 +2011,7 @@ function GameView() {
   //現場監督
   function update(now, deltaTime) {
     updateVehicle(now, deltaTime);
+    updateNPCs(now, deltaTime);
     updateVehicleMenu(now);
     updateCrossing(now);
     updateTrain(now, deltaTime);
@@ -1775,6 +2062,8 @@ function GameView() {
     const puddle07 = new Image();
     const puddle08 = new Image();
 
+    const npcHiyoko01 = new Image();
+
     const menuBackground01 = new Image();
     const menuTag01 = new Image();
     const selectAnimation01 = new Image();
@@ -1807,6 +2096,7 @@ function GameView() {
     imagesRef.current.tCat01 = tCat01;
     imagesRef.current.tCat02 = tCat02;
     imagesRef.current.tCat03 = tCat03;
+    imagesRef.current.npcHiyoko01 = npcHiyoko01;
 
     //画像の場所はここ。
     background.src = `${import.meta.env.BASE_URL}images/background01.png`;
@@ -1837,6 +2127,7 @@ function GameView() {
     tCat01.src = `${import.meta.env.BASE_URL}images/tCat01.png`;
     tCat02.src = `${import.meta.env.BASE_URL}images/tCat02.png`;
     tCat03.src = `${import.meta.env.BASE_URL}images/tCat03.png`;
+    npcHiyoko01.src = `${import.meta.env.BASE_URL}images/npc_hiyoko01.png`;
 
     let loaded = 0;
 
@@ -1844,7 +2135,7 @@ function GameView() {
     function imageLoaded() {
       loaded++;
 
-      if (loaded === 28) {
+      if (loaded === 29) {
         draw(ctx, performance.now());
       }
     }
@@ -1878,6 +2169,7 @@ function GameView() {
     tCat01.onload = imageLoaded;
     tCat02.onload = imageLoaded;
     tCat03.onload = imageLoaded;
+    npcHiyoko01.onload = imageLoaded;
 
   }, []);
 
