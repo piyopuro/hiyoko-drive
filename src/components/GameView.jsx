@@ -1846,10 +1846,7 @@ function GameView() {
     }
 
     //今回は走っているバスだけ避ける
-    if (
-      vehicle.type !== "bus" ||
-      vehicle.state !== State.MOVE
-    ) {
+    if (vehicle.state !== State.MOVE) {
       return;
     }
 
@@ -2036,21 +2033,21 @@ function GameView() {
         npc.position.y = npc.target.y;
 
         const wasFleeing =
-         npc.behavior.type === "flee";
+          npc.behavior.type === "flee";
 
         npc.behavior.type = "wander";
         npc.state = NPCState.IDLE;
         npc.frame = 0;
 
         npc.waitUntil = now +
-        (
+          (
             wasFleeing
               ? getRandomNumber(300, 700)
               : getRandomNumber(
-                  master.waitTime.min,
-                  master.waitTime.max
-                )          
-        );
+                master.waitTime.min,
+                master.waitTime.max
+              )
+          );
 
         continue;
       }
