@@ -207,7 +207,7 @@ const vehicleMaster = {
     width: 192,
     height: 128,
 
-    speed: 360,
+    speed: 400,
 
     canChangeColor: false,
     defaultSkin: "normal",
@@ -224,6 +224,30 @@ const vehicleMaster = {
     actionSound: "ambulanceSiren",
 
   },
+
+  fireEngine: {
+    width: 192,
+    height: 128,
+
+    speed: 400,
+
+    canChangeColor: false,
+    defaultSkin: "normal",
+    skins: {
+      normal: "fireEngine01",
+    },
+
+    shadow: {
+      offsetY: 50,
+      width: 55,
+      height: 18,
+    },
+
+    actionSound: "fireEngineSiren",
+
+  },
+
+
 
   /* 今後実装予定
   bigbus: {
@@ -486,6 +510,16 @@ const vehicleMenuItems = [
     selectOffsetX: -90,
     selectOffsetY: -75,
   },
+  {
+    type: "fireEngine",
+    skin: "normal",
+    offsetX: 1100,
+    lineY: 300,
+    baselineOffset: 0,
+
+    selectOffsetX: -90,
+    selectOffsetY: -90,
+  },
 ]
 
 //電車と踏切の情報だよ。
@@ -672,43 +706,7 @@ function GameView() {
     ].filter(Boolean);
   }
 
-  const imagesRef = useRef({
-    background: null,
-
-    bus01: null,
-    bus02: null,
-    bus03: null,
-    bus04: null,
-    bus05: null,
-    bus06: null,
-    bus07: null,
-    bus08: null,
-
-    ambulance01: null,
-
-    train01: null,
-    crossing01: null,
-    tEffect01: null,
-    tHiyoko: null,
-    tCat01: null,
-    tCat02: null,
-    tCat03: null,
-
-    puddle01: null,
-    puddle02: null,
-    puddle03: null,
-    puddle04: null,
-    puddle05: null,
-    puddle06: null,
-    puddle07: null,
-    puddle08: null,
-
-    npcHiyoko01: null,
-
-    menuBackground01: null,
-    menuTag01: null,
-    selectAnimation01: null,
-  });
+  const imagesRef = useRef({});
 
   const vehiclesRef = useRef(vehicles); //車の情報
   useEffect(() => {   //車の情報が変わったら入れるよ
@@ -2702,7 +2700,7 @@ function GameView() {
     }
   }
 
-  //ここはcanvas君。画面に背景とかバスとか描くところ。
+  //画像読み込み所
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
@@ -2710,144 +2708,50 @@ function GameView() {
     ctxRef.current = ctx;
 
     //画像はここから。
-    const background = new Image();
+    const imageNames = [
+      "background",
 
-    const bus01 = new Image();
-    const bus02 = new Image();
-    const bus03 = new Image();
-    const bus04 = new Image();
-    const bus05 = new Image();
-    const bus06 = new Image();
-    const bus07 = new Image();
-    const bus08 = new Image();
+      "bus01", "bus02", "bus03", "bus04",
+      "bus05", "bus06", "bus07", "bus08",
 
-    const ambulance01 = new Image();
+      "ambulance01",
+      "fireEngine01",
 
-    const train01 = new Image();
-    const crossing01 = new Image();
-    const tEffect01 = new Image();
-    const tHiyoko = new Image();
-    const tCat01 = new Image();
-    const tCat02 = new Image();
-    const tCat03 = new Image();
+      "train01",
+      "crossing01",
+      "tEffect01",
+      "tHiyoko", "tCat01", "tCat02", "tCat03",
 
-    const puddle01 = new Image();
-    const puddle02 = new Image();
-    const puddle03 = new Image();
-    const puddle04 = new Image();
-    const puddle05 = new Image();
-    const puddle06 = new Image();
-    const puddle07 = new Image();
-    const puddle08 = new Image();
+      "puddle01", "puddle02", "puddle03", "puddle04",
+      "puddle05", "puddle06", "puddle07", "puddle08",
 
-    const npcHiyoko01 = new Image();
+      "npcHiyoko01",
 
-    const menuBackground01 = new Image();
-    const menuTag01 = new Image();
-    const selectAnimation01 = new Image();
-
-    imagesRef.current.background = background;
-    imagesRef.current.bus01 = bus01;
-    imagesRef.current.bus02 = bus02;
-    imagesRef.current.bus03 = bus03;
-    imagesRef.current.bus04 = bus04;
-    imagesRef.current.bus05 = bus05;
-    imagesRef.current.bus06 = bus06;
-    imagesRef.current.bus07 = bus07;
-    imagesRef.current.bus08 = bus08;
-    imagesRef.current.puddle01 = puddle01;
-    imagesRef.current.puddle02 = puddle02;
-    imagesRef.current.puddle03 = puddle03;
-    imagesRef.current.puddle04 = puddle04;
-    imagesRef.current.puddle05 = puddle05;
-    imagesRef.current.puddle06 = puddle06;
-    imagesRef.current.puddle07 = puddle07;
-    imagesRef.current.puddle08 = puddle08;
-    imagesRef.current.ambulance01 = ambulance01;
-    imagesRef.current.menuBackground01 = menuBackground01;
-    imagesRef.current.menuTag01 = menuTag01;
-    imagesRef.current.selectAnimation01 = selectAnimation01;
-    imagesRef.current.train01 = train01;
-    imagesRef.current.crossing01 = crossing01;
-    imagesRef.current.tEffect01 = tEffect01;
-    imagesRef.current.tHiyoko = tHiyoko;
-    imagesRef.current.tCat01 = tCat01;
-    imagesRef.current.tCat02 = tCat02;
-    imagesRef.current.tCat03 = tCat03;
-    imagesRef.current.npcHiyoko01 = npcHiyoko01;
-
-    //画像の場所はここ。
-    background.src = `${import.meta.env.BASE_URL}images/background01.png`;
-    bus01.src = `${import.meta.env.BASE_URL}images/bus01.png`;
-    bus02.src = `${import.meta.env.BASE_URL}images/bus02.png`;
-    bus03.src = `${import.meta.env.BASE_URL}images/bus03.png`;
-    bus04.src = `${import.meta.env.BASE_URL}images/bus04.png`;
-    bus05.src = `${import.meta.env.BASE_URL}images/bus05.png`;
-    bus06.src = `${import.meta.env.BASE_URL}images/bus06.png`;
-    bus07.src = `${import.meta.env.BASE_URL}images/bus07.png`;
-    bus08.src = `${import.meta.env.BASE_URL}images/bus08.png`;
-    puddle01.src = `${import.meta.env.BASE_URL}images/puddle01.png`;
-    puddle02.src = `${import.meta.env.BASE_URL}images/puddle02.png`;
-    puddle03.src = `${import.meta.env.BASE_URL}images/puddle03.png`;
-    puddle04.src = `${import.meta.env.BASE_URL}images/puddle04.png`;
-    puddle05.src = `${import.meta.env.BASE_URL}images/puddle05.png`;
-    puddle06.src = `${import.meta.env.BASE_URL}images/puddle06.png`;
-    puddle07.src = `${import.meta.env.BASE_URL}images/puddle07.png`;
-    puddle08.src = `${import.meta.env.BASE_URL}images/puddle08.png`;
-    ambulance01.src = `${import.meta.env.BASE_URL}images/ambulance01.png`;
-    menuBackground01.src = `${import.meta.env.BASE_URL}images/menuBackground01.png`;
-    menuTag01.src = `${import.meta.env.BASE_URL}images/menuTag01.png`;
-    selectAnimation01.src = `${import.meta.env.BASE_URL}images/selectAnimation01.png`;
-    train01.src = `${import.meta.env.BASE_URL}images/train01.png`;
-    crossing01.src = `${import.meta.env.BASE_URL}images/crossing01.png`;
-    tEffect01.src = `${import.meta.env.BASE_URL}images/tEffect01.png`;
-    tHiyoko.src = `${import.meta.env.BASE_URL}images/tHiyoko.png`;
-    tCat01.src = `${import.meta.env.BASE_URL}images/tCat01.png`;
-    tCat02.src = `${import.meta.env.BASE_URL}images/tCat02.png`;
-    tCat03.src = `${import.meta.env.BASE_URL}images/tCat03.png`;
-    npcHiyoko01.src = `${import.meta.env.BASE_URL}images/npc_hiyoko01.png`;
-
-    let loaded = 0;
+      "menuBackground01",
+      "menuTag01",
+      "selectAnimation01",
+    ];
 
     //読み込み進捗君。全部揃ったら描いてくれる。
+    let loaded = 0;
+
     function imageLoaded() {
       loaded++;
 
-      if (loaded === 29) {
+      if (loaded === imageNames.length) {
         draw(ctx, performance.now());
       }
     }
 
-    //読み込みが終わったらこれ。
-    background.onload = imageLoaded;
-    bus01.onload = imageLoaded;
-    bus02.onload = imageLoaded;
-    bus03.onload = imageLoaded;
-    bus04.onload = imageLoaded;
-    bus05.onload = imageLoaded;
-    bus06.onload = imageLoaded;
-    bus07.onload = imageLoaded;
-    bus08.onload = imageLoaded;
-    puddle01.onload = imageLoaded;
-    puddle02.onload = imageLoaded;
-    puddle03.onload = imageLoaded;
-    puddle04.onload = imageLoaded;
-    puddle05.onload = imageLoaded;
-    puddle06.onload = imageLoaded;
-    puddle07.onload = imageLoaded;
-    puddle08.onload = imageLoaded;
-    ambulance01.onload = imageLoaded;
-    menuBackground01.onload = imageLoaded;
-    menuTag01.onload = imageLoaded;
-    selectAnimation01.onload = imageLoaded;
-    train01.onload = imageLoaded;
-    crossing01.onload = imageLoaded;
-    tEffect01.onload = imageLoaded;
-    tHiyoko.onload = imageLoaded;
-    tCat01.onload = imageLoaded;
-    tCat02.onload = imageLoaded;
-    tCat03.onload = imageLoaded;
-    npcHiyoko01.onload = imageLoaded;
+    //読み込んでお名前をつける係
+    imageNames.forEach((name) => {
+      const image = new Image();
+
+      image.onload = imageLoaded;
+      image.src = `${import.meta.env.BASE_URL}images/${name}.png`;
+
+      imagesRef.current[name] = image;
+    });
 
   }, []);
 
@@ -2922,58 +2826,18 @@ function GameView() {
   useEffect(() => {
     const soundManager = soundManagerRef.current;
 
-    Promise.all([
-      soundManager.load(
-        "select01",
-        `${import.meta.env.BASE_URL}sounds/select01.mp3`
-      ),
+    const soundNames = [
+      "select01",
+      "menuOpen01",
 
-      soundManager.load(
-        "menuOpen01",
-        `${import.meta.env.BASE_URL}sounds/menuOpen01.mp3`
-      ),
+      "busHorn", "ambulanceSiren", "fireEngineSiren",
+      "train01", "crossing", "trainHorn01", "passengerAppear01",
 
-      soundManager.load(
-        "busHorn",
-        `${import.meta.env.BASE_URL}sounds/busHorn.mp3`
-      ),
+      "hiyokoJump",
+      "busHiyoko01",
+    ];
 
-      soundManager.load(
-        "ambulanceSiren",
-        `${import.meta.env.BASE_URL}sounds/ambulanceSiren.mp3`
-      ),
-
-      soundManager.load(
-        "train01",
-        `${import.meta.env.BASE_URL}sounds/train01.mp3`
-      ),
-
-      soundManager.load(
-        "crossing",
-        `${import.meta.env.BASE_URL}sounds/crossing.mp3`
-      ),
-
-      soundManager.load(
-        "trainHorn01",
-        `${import.meta.env.BASE_URL}sounds/trainHorn01.mp3`
-      ),
-
-      soundManager.load(
-        "passengerAppear01",
-        `${import.meta.env.BASE_URL}sounds/passengerAppear01.mp3`
-      ),
-
-      soundManager.load(
-        "hiyokoJump",
-        `${import.meta.env.BASE_URL}sounds/hiyoko_jump.mp3`
-      ),
-
-      soundManager.load(
-        "busHiyoko01",
-        `${import.meta.env.BASE_URL}sounds/busHiyoko01.mp3`
-      ),
-
-    ])
+    Promise.all(soundNames.map((name) => soundManager.load(name, `${import.meta.env.BASE_URL}sounds/${name}.mp3`)))
       .then(() => {
         console.log("効果音の読み込み完了");
       })
@@ -2981,7 +2845,6 @@ function GameView() {
         console.error("効果音の読み込みに失敗しました", error);
       });
   }, []);
-
 
   //今まで計算したやつ、ここで出てくるよ～。
   return (
