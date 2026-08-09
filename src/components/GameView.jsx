@@ -56,6 +56,28 @@ const NPCAction = {
   JUMP_HEIGHT: 85,
 };
 
+const FireFightHiyokoAction = {
+  JUMP_DURATION: 500,
+  LANDING_DURATION: 230,
+  JUMP_HEIGHT: 60,
+
+  WALK_DURATION: 800,
+
+  WALK_DISTANCE_HORIZONTAL: 180,
+  WALK_DISTANCE_VERTICAL: 30,
+
+  RETURN_WALK_DURATION: 800,
+};
+
+const FireFightWaterAction = {
+  FRAME_INTERVAL: 100,
+  LOOP_DURATION: 1000,
+
+  introFrames: [0, 1],
+  loopFrames: [2, 3],
+  outroFrames: [4, 5, 6],
+};
+
 const NPCBehaviorType = {
   WANDER: "wander",
   FLEE: "flee",
@@ -244,6 +266,22 @@ const vehicleMaster = {
     },
 
     actionSound: "fireEngineSiren",
+
+    hoseRemovedFrame: 2,
+    initialActionState: {
+      hoseRemoved: false,
+
+      hiyoko: {
+        visible: true,
+        jumpStartTime: null,
+
+        soundPlayed: {
+          hose: false,
+          spray: false,
+          returnJump: false,
+        },
+      },
+    },
 
   },
 
@@ -875,6 +913,660 @@ function GameView() {
       drawNPC(ctx, npc, now);
     }
   }
+
+
+  //消防ひよこ描画本部
+  function drawFireFightHiyoko(ctx, vehicle, now) {
+    const image = imagesRef.current.fireFightAction01;
+
+    if (!image) {
+      return;
+    }
+
+    const hiyoko = vehicle.actionState?.hiyoko;
+    if (!hiyoko?.visible || hiyoko.jumpStartTime == null) {
+      return;
+    }
+
+    const action =
+      getFireFightHiyokoPosition(vehicle, now);
+
+    if (!action) {
+      return;
+    }
+
+    let x = action.x;
+    let y = action.y;
+
+    const {
+      elapsed,
+      jumpProgress,
+      jumpFinished,
+      walkElapsed,
+      walkFinished,
+      waterFinished,
+      returnWalkElapsed,
+      returnWalkProgress,
+      returnWalkFinished,
+    } = action;
+
+    //========画像情報管理部=========
+
+    const frameWidth = 128;
+    const frameHeight = 64;
+
+    const WALK_FRAMES = [0, 1, 0, 2];
+    const WALK_FRAME_INTERVAL = 120;
+
+
+    //=========ひよこ登場向き指示部========
+
+    let hiyokoDirection;
+
+    //初期向き
+    switch (vehicle.direction) {
+      case Direction.RIGHT:
+      case Direction.LEFT:
+        hiyokoDirection = Direction.FRONT;
+        break;
+
+      case Direction.FRONT:
+        hiyokoDirection = Direction.RIGHT;
+        break;
+
+      case Direction.BACK:
+        hiyokoDirection = Direction.LEFT;
+        break;
+    }
+
+    //ジャンプ中
+    if (jumpFinished) {
+      switch (vehicle.direction) {
+        case Direction.RIGHT:
+          hiyokoDirection = Direction.LEFT;
+          break;
+
+        case Direction.LEFT:
+          hiyokoDirection = Direction.RIGHT;
+          break;
+
+        case Direction.FRONT:
+          hiyokoDirection = Direction.BACK;
+          break;
+
+        case Direction.BACK:
+          hiyokoDirection = Direction.FRONT;
+          break;
+      }
+    }
+
+    //戻り中
+    if (waterFinished) {
+      switch (vehicle.direction) {
+        case Direction.RIGHT:
+          hiyokoDirection = Direction.RIGHT;
+          break;
+
+        case Direction.LEFT:
+          hiyokoDirection = Direction.LEFT;
+          break;
+
+        case Direction.FRONT:
+          hiyokoDirection = Direction.FRONT;
+          break;
+
+        case Direction.BACK:
+          hiyokoDirection = Direction.BACK;
+          break;
+      }
+    }
+
+    //帰りのジャンプ中
+    if (returnWalkFinished) {
+      switch (vehicle.direction) {
+        case Direction.RIGHT:
+        case Direction.LEFT:
+          hiyokoDirection = Direction.BACK;
+          break;
+
+        case Direction.FRONT:
+          hiyokoDirection = Direction.LEFT;
+          break;
+
+        case Direction.BACK:
+          hiyokoDirection = Direction.RIGHT;
+          break;
+      }
+    }
+
+    //========使う画像決定部========
+
+    let frame = 0;
+
+    //歩行アニメ
+    let animationElapsed = walkElapsed;
+
+    if (waterFinished) {
+      animationElapsed = returnWalkElapsed;
+    }
+
+    if ((jumpFinished && !walkFinished) ||
+      (waterFinished && returnWalkProgress < 1)) {
+
+      const frameIndex =
+        Math.floor(
+          animationElapsed / WALK_FRAME_INTERVAL
+        ) % WALK_FRAMES.length;
+
+      frame = WALK_FRAMES[frameIndex];
+    }
+
+    let sx = frame * frameWidth;
+    let sy = hiyokoDirection * frameHeight;
+
+
+    //========ひよこにホースを持たせる部========
+    //ホースのところに到着！
+    if (walkFinished && !waterFinished) { //歩き終わった？放水はまだ？
+      sx = 0;
+
+      switch (vehicle.direction) {
+        case Direction.LEFT:
+        case Direction.FRONT:
+          sy = 4 * frameHeight;
+          break;
+
+        case Direction.RIGHT:
+        case Direction.BACK:
+          sy = 5 * frameHeight;
+          break;
+      }
+    }
+
+
+    //========ひよこをつぶす部========
+
+    let scaleY = 1;
+
+    if (jumpProgress < 0.15) {
+
+      const t = jumpProgress / 0.15;
+      scaleY = 1 + (0.5 - 1) * t;
+
+    } else if (jumpProgress < 0.35) {
+
+      const t = (jumpProgress - 0.15) / (0.35 - 0.15);
+      scaleY = 0.5 + (1.18 - 0.5) * t;
+
+    } else if (jumpProgress < 0.5) {
+
+      const t = (jumpProgress - 0.35) / (0.5 - 0.35);
+      scaleY = 1.18 + (1 - 1.18) * t;
+
+    }
+
+    //着地後の潰れ
+    if (elapsed >= FireFightHiyokoAction.JUMP_DURATION) {
+      const landingElapsed =
+        elapsed - FireFightHiyokoAction.JUMP_DURATION;
+
+      const landingProgress =
+        Math.min(
+          landingElapsed / FireFightHiyokoAction.LANDING_DURATION,
+          1
+        );
+
+      if (landingProgress < 0.35) {
+
+        const t = landingProgress / 0.35;
+        scaleY = 1 + (0.5 - 1) * t;
+
+      } else {
+
+        const t = (landingProgress - 0.35) / (1 - 0.35);
+        scaleY = 0.5 + (1 - 0.5) * t;
+
+      }
+    }
+
+
+    //========描画部========
+
+    ctx.save();
+
+    ctx.translate(    // まず「ひよこの足元」の位置へ移動
+      x,
+      y + frameHeight / 2
+    );
+
+    ctx.scale(1, scaleY);    // 足元を基準に縦方向だけ伸び縮み
+
+    ctx.drawImage(
+      image,
+      sx,
+      sy,
+      frameWidth,
+      frameHeight,
+
+      -frameWidth / 2,
+      -frameHeight,
+
+      frameWidth,
+      frameHeight
+    );
+
+    ctx.restore();
+  }
+
+  function getFireFightHiyokoPosition(vehicle, now) {
+
+    const hiyoko = vehicle.actionState?.hiyoko;
+    if (!hiyoko?.visible || hiyoko.jumpStartTime == null) {
+      return;
+    }
+
+
+    //========時間計算部========
+    const elapsed = now - hiyoko.jumpStartTime;
+
+    //ジャンプ終わったか計算
+    const jumpProgress = Math.min(
+      elapsed / FireFightHiyokoAction.JUMP_DURATION,
+      1
+    );
+    const jumpFinished =
+      elapsed >=
+      FireFightHiyokoAction.JUMP_DURATION +
+      FireFightHiyokoAction.LANDING_DURATION;
+
+
+    //歩き終わったか計算
+    const walkElapsed =
+      elapsed -
+      FireFightHiyokoAction.JUMP_DURATION -
+      FireFightHiyokoAction.LANDING_DURATION;
+
+    const walkProgress = Math.min(
+      Math.max(
+        walkElapsed / FireFightHiyokoAction.WALK_DURATION,
+        0
+      ),
+      1
+    );
+
+    const walkFinished = walkProgress >= 1;  //歩き終わった？
+
+
+    //水撒きおわったか計算
+    const waterDuration =
+      FireFightWaterAction.introFrames.length *
+      FireFightWaterAction.FRAME_INTERVAL +
+      FireFightWaterAction.LOOP_DURATION +
+      FireFightWaterAction.outroFrames.length *
+      FireFightWaterAction.FRAME_INTERVAL;
+
+    const waterFinishedTime =
+      FireFightHiyokoAction.JUMP_DURATION +
+      FireFightHiyokoAction.LANDING_DURATION +
+      FireFightHiyokoAction.WALK_DURATION +
+      waterDuration;
+
+    const waterFinished =
+      elapsed >= waterFinishedTime;
+
+
+    //ひよこ帰る時間
+    const returnWalkElapsed =
+      elapsed - waterFinishedTime;
+
+    const returnWalkProgress = Math.min(
+      Math.max(
+        returnWalkElapsed /
+        FireFightHiyokoAction.RETURN_WALK_DURATION,
+        0
+      ),
+      1
+    );
+
+    const returnWalkFinished =
+      returnWalkProgress >= 1;
+
+
+    //帰還ジャンプ時間
+    const returnJumpElapsed =
+      returnWalkElapsed -
+      FireFightHiyokoAction.RETURN_WALK_DURATION;
+
+    const returnJumpProgress = Math.min(
+      Math.max(
+        returnJumpElapsed / FireFightHiyokoAction.JUMP_DURATION,
+        0
+      ),
+      1
+    );
+
+
+    //========ジャンプ座標管理部========
+    //ジャンプ開始地点
+    let startX = vehicle.position.x;
+    let startY = vehicle.position.y;
+
+    //着地点
+    let landingX = vehicle.position.x;
+    let landingY = vehicle.position.y;
+
+    switch (vehicle.direction) {
+      case Direction.RIGHT:
+        landingX += 80;
+        landingY += 40;
+
+        startX += 80;
+        startY += 20;
+        break;
+
+      case Direction.LEFT:
+        landingX -= 80;
+        landingY += 40;
+
+        startX -= 80;
+        startY += 20;
+        break;
+
+      case Direction.FRONT:
+        landingX += 112;
+        landingY += 40;
+
+        startX += 80;
+        startY += 10;
+        break;
+
+      case Direction.BACK:
+        landingX -= 110;
+        landingY += 0;
+
+        startX -= 80;
+        startY -= 30;
+        break;
+    }
+
+
+    //=========現在位置=========
+    //開始位置 → 着地点
+    let x =
+      startX +
+      (landingX - startX) *
+      jumpProgress;
+
+    let y =
+      startY +
+      (landingY - startY) *
+      jumpProgress;
+
+    //ぴょん！の高さ
+    if (jumpProgress < 1) {
+      y -= Math.sin(jumpProgress * Math.PI) * FireFightHiyokoAction.JUMP_HEIGHT;
+    }
+
+
+    //=========着地後にひよこを歩かせる部========
+
+    //着地した？
+    if (jumpFinished) {
+      switch (vehicle.direction) {
+        case Direction.RIGHT:
+          x -=
+            FireFightHiyokoAction.WALK_DISTANCE_HORIZONTAL *
+            walkProgress;
+          break;
+
+        case Direction.LEFT:
+          x +=
+            FireFightHiyokoAction.WALK_DISTANCE_HORIZONTAL *
+            walkProgress;
+          break;
+
+        case Direction.FRONT:
+          y -=
+            FireFightHiyokoAction.WALK_DISTANCE_VERTICAL *
+            walkProgress;
+          break;
+
+        case Direction.BACK:
+          y +=
+            FireFightHiyokoAction.WALK_DISTANCE_VERTICAL *
+            walkProgress;
+          break;
+      }
+    }
+
+
+    //========放水後、消防車へ帰らせる部========
+
+    if (waterFinished) {
+      switch (vehicle.direction) {
+        case Direction.RIGHT:
+          x +=
+            FireFightHiyokoAction.WALK_DISTANCE_HORIZONTAL *
+            returnWalkProgress;
+          break;
+
+        case Direction.LEFT:
+          x -=
+            FireFightHiyokoAction.WALK_DISTANCE_HORIZONTAL *
+            returnWalkProgress;
+          break;
+
+        case Direction.FRONT:
+          y +=
+            FireFightHiyokoAction.WALK_DISTANCE_VERTICAL *
+            returnWalkProgress;
+          break;
+
+        case Direction.BACK:
+          y -=
+            FireFightHiyokoAction.WALK_DISTANCE_VERTICAL *
+            returnWalkProgress;
+          break;
+      }
+    }
+
+
+    //========最後に消防車へジャンプして戻る部========
+
+    if (returnWalkFinished) {
+
+      //着地点 → 最初に飛び出してきた位置へ
+      x =
+        landingX +
+        (startX - landingX) *
+        returnJumpProgress;
+
+      y =
+        landingY +
+        (startY - landingY) *
+        returnJumpProgress;
+
+      //ジャンプ中の向き
+      switch (vehicle.direction) {
+        case Direction.RIGHT:
+        case Direction.LEFT:
+          break;
+
+        case Direction.FRONT:
+          break;
+
+        case Direction.BACK:
+          break;
+      }
+
+      //ぴょん！
+      if (returnJumpProgress < 1) {
+        y -=
+          Math.sin(returnJumpProgress * Math.PI) *
+          FireFightHiyokoAction.JUMP_HEIGHT;
+      }
+    }
+
+    return {
+      x,
+      y,
+
+      elapsed,
+      jumpProgress,
+      jumpFinished,
+      walkElapsed,
+      walkProgress,
+      walkFinished,
+      waterFinished,
+      returnWalkElapsed,
+      returnWalkProgress,
+      returnWalkFinished,
+      returnJumpProgress,
+      returnWalkFinished,
+    };
+  }
+
+
+  //放水描画係
+  function drawFireFightWater(ctx, vehicle, now) {
+    const image = imagesRef.current.fireFightAction02;
+
+    if (!image) {
+      return;
+    }
+
+    const hiyoko = vehicle.actionState?.hiyoko;
+
+    if (!hiyoko?.visible) { //ひよこ見えてる？
+      return;
+    }
+
+    if (!vehicle.actionState?.hoseRemoved) {  //ホースとれてる？
+      return;
+    }
+
+    const sprayStartTime =
+      hiyoko.jumpStartTime +
+      FireFightHiyokoAction.JUMP_DURATION +
+      FireFightHiyokoAction.LANDING_DURATION +
+      FireFightHiyokoAction.WALK_DURATION;
+
+    const sprayElapsed = now - sprayStartTime;
+
+    if (sprayElapsed < 0) {   //放水始まった？
+      return;
+    }
+
+    //アニメーション用フレームどこ
+    const {
+      FRAME_INTERVAL,
+      LOOP_DURATION,
+      introFrames,
+      loopFrames,
+      outroFrames,
+    } = FireFightWaterAction;
+
+    const introDuration =
+      introFrames.length * FRAME_INTERVAL;
+
+    const outroDuration =
+      outroFrames.length * FRAME_INTERVAL;
+
+    let frame;
+
+    //水撒き始め
+    if (sprayElapsed < introDuration) {
+      const index =
+        Math.floor(sprayElapsed / FRAME_INTERVAL);
+
+      frame = introFrames[index];
+    }
+
+    //水撒いてる中
+    else if (
+      sprayElapsed <
+      introDuration + LOOP_DURATION
+    ) {
+      const loopElapsed = sprayElapsed - introDuration;
+
+      const index =
+        Math.floor(loopElapsed / FRAME_INTERVAL) %
+        loopFrames.length;
+
+      frame = loopFrames[index];
+    }
+
+    //水撒きおわり
+    else if (
+      sprayElapsed <
+      introDuration +
+      LOOP_DURATION +
+      outroDuration
+    ) {
+      const outroElapsed =
+        sprayElapsed -
+        introDuration -
+        LOOP_DURATION;
+
+      const index =
+        Math.floor(outroElapsed / FRAME_INTERVAL);
+
+      frame = outroFrames[index];
+    }
+
+    //放水終了
+    else {
+      return;
+    }
+
+
+    const frameWidth = 256;
+    const frameHeight = 64;
+
+    let sx;
+
+    const position = getFireFightHiyokoPosition(vehicle, now);
+    if (!position) {
+      return;
+    }
+
+    const { x, y } = position;
+
+    let waterX = x;
+    const sy = frame * frameHeight;
+
+    switch (vehicle.direction) {
+      case Direction.LEFT:
+      case Direction.FRONT:
+        sx = 0;
+        waterX += 160;
+        break;
+
+      case Direction.RIGHT:
+      case Direction.BACK:
+        sx = frameWidth;
+        waterX -= 160;
+        break;
+    }
+
+
+
+    ctx.drawImage(
+      image,
+
+      sx,
+      sy,
+      frameWidth,
+      frameHeight,
+
+      waterX - frameWidth / 2,
+      y - frameHeight / 2,
+
+      frameWidth,
+      frameHeight
+    );
+  }
+
   //のりもの描画係
   function drawVehicle(ctx, vehicle) {
     const master = vehicleMaster[vehicle.type];
@@ -885,7 +1577,13 @@ function GameView() {
     const frameWidth = master.width;
     const frameHeight = master.height;
 
-    const sx = vehicle.frame * frameWidth;       //アニメーション用の場所指定してるよ。
+    let frame = vehicle.frame;
+
+    if (vehicle.type === "fireEngine" && vehicle.actionState?.hoseRemoved) {
+      frame = master.hoseRemovedFrame;
+    }
+
+    const sx = frame * frameWidth;       //アニメーション用の場所指定してるよ。
     const sy = vehicle.direction * frameHeight;  //どこ向いてるかな？？によって切り取る場所を変えるよ。
 
     const drawWidth = frameWidth * vehicle.transform.scaleX;
@@ -1283,6 +1981,11 @@ function GameView() {
     );
     drawVehicle(ctx, vehicle);
 
+    if (vehicle.type === "fireEngine") {
+      drawFireFightHiyoko(ctx, vehicle, now);
+      drawFireFightWater(ctx, vehicle, now);
+    }
+
     //電車描画係
     drawTrain(ctx);
     //電車の乗客描画係
@@ -1398,6 +2101,79 @@ function GameView() {
 
     }
 
+
+    //今いる車を触ったかな？
+    const vehicle = vehiclesRef.current[0];
+
+    if (vehicle.type === "fireEngine") {
+      const vehicleRect = getVehicleRect(vehicle);
+
+      if (isPointInsideRect(x, y, vehicleRect)) {
+        const isActionRunning =
+          vehicle.actionState?.hiyoko?.jumpStartTime != null;
+
+        if (isActionRunning) {
+          const hiyokoPosition =
+            getFireFightHiyokoPosition(vehicle, now);
+
+          if (hiyokoPosition) {
+            createTapSparkles(
+              hiyokoPosition.x,
+              hiyokoPosition.y,
+              now
+            );
+          }
+
+          return;
+        }
+
+        if (!isActionRunning) {
+          setVehicles((prevVehicles) => {
+            const newVehicles = [...prevVehicles];
+
+            const vehicle = {
+              ...newVehicles[0],
+
+              actionState: {
+                ...newVehicles[0].actionState,
+
+                hiyoko: {
+                  ...newVehicles[0].actionState.hiyoko,
+                },
+              },
+            };
+
+            vehicle.actionState.hoseRemoved = false;
+            vehicle.actionState.hiyoko.visible = true;
+            vehicle.actionState.hiyoko.jumpStartTime = now;
+
+            vehicle.actionState.hiyoko.lastWalkSoundTime = null;
+            vehicle.actionState.hiyoko.soundPlayed = {
+              hose: false,
+              spray: false,
+              returnJump: false,
+            };
+
+            soundManagerRef.current.play("hiyokoNoru");
+
+            newVehicles[0] = vehicle;
+            return newVehicles;
+          });
+        }
+        return;
+      }
+    }
+
+    //アクション中は移動しないよ！
+    const fireFightActionRunning =
+      vehicle.type === "fireEngine" &&
+      vehicle.actionState?.hiyoko?.jumpStartTime != null;
+
+    if (fireFightActionRunning) {
+      return;
+    }
+
+
     setVehicles((prevVehicles) => {
       const newVehicles = [...prevVehicles]; //newVehicle君に今の値をこぴ
       const vehicle = { ...newVehicles[0] };  //vehicle君（計算係）にそのセットの中のバスのやつ渡してあげて。
@@ -1413,7 +2189,6 @@ function GameView() {
     });
 
     //音鳴らしちゃうよ。
-    const vehicle = vehicles[0];
     const master = vehicleMaster[vehicle.type];
     soundManagerRef.current.play(master.actionSound);
   }
@@ -1461,6 +2236,12 @@ function GameView() {
 
       vehicle.type = newType;
       vehicle.skin = master.defaultSkin;
+
+      if (master.initialActionState) {
+        vehicle.actionState = { ...master.initialActionState };
+      } else {
+        delete vehicle.actionState;
+      }
 
       vehicle.position = {
         x: 960, y: 540,
@@ -1555,7 +2336,7 @@ function GameView() {
     };
   }
 
-  //メニュー付箋・電車おさわりチェック
+  //おさわりチェック係
   function isPointInsideRect(x, y, rect) {
     return (
       x >= rect.x &&
@@ -1563,6 +2344,24 @@ function GameView() {
       y >= rect.y &&
       y <= rect.y + rect.height
     );
+  }
+
+  //車おさわり判定
+  function getVehicleRect(vehicle) {
+    const master = vehicleMaster[vehicle.type];
+
+    const width =
+      master.width * Math.abs(vehicle.transform.scaleX);
+
+    const height =
+      master.height * Math.abs(vehicle.transform.scaleY);
+
+    return {
+      x: vehicle.position.x - width / 2,
+      y: vehicle.position.y - height / 2,
+      width,
+      height,
+    };
   }
 
   //踏切おさわり判定
@@ -2046,7 +2845,7 @@ function GameView() {
     npc.target.x = ridingPosition.x;
     npc.target.y = ridingPosition.y;
 
-    soundManagerRef.current.play("busHiyoko01");  //ぴよ♪
+    soundManagerRef.current.play("hiyokoNoru");  //ぴよ♪
 
     return true;
   }
@@ -2147,7 +2946,7 @@ function GameView() {
     npc.state = NPCState.IDLE;
     npc.frame = 0;
 
-    soundManagerRef.current.play("busHiyoko01");  //ぴよ♪
+    soundManagerRef.current.play("hiyokoNoru");  //ぴよ♪
     startNPCJump(npc, now);  //ジャンプ
   }
 
@@ -2654,6 +3453,107 @@ function GameView() {
     }
   }
 
+  //消防アクション更新係
+  function updateFireFightAction(vehicle, now) {
+    if (vehicle.type !== "fireEngine") {
+      return;
+    }
+
+    const hiyoko = vehicle.actionState?.hiyoko;
+
+    if (!hiyoko?.visible || hiyoko.jumpStartTime == null) {
+      return;
+    }
+
+    const elapsed = now - hiyoko.jumpStartTime;
+
+    const jumpFinished = elapsed >=
+      FireFightHiyokoAction.JUMP_DURATION +
+      FireFightHiyokoAction.LANDING_DURATION;
+
+    const walkFinished =
+      elapsed >=
+      FireFightHiyokoAction.JUMP_DURATION +
+      FireFightHiyokoAction.LANDING_DURATION +
+      FireFightHiyokoAction.WALK_DURATION;
+
+    const waterDuration =
+      FireFightWaterAction.introFrames.length *
+      FireFightWaterAction.FRAME_INTERVAL +
+      FireFightWaterAction.LOOP_DURATION +
+      FireFightWaterAction.outroFrames.length *
+      FireFightWaterAction.FRAME_INTERVAL;
+
+    const waterFinished =
+      elapsed >=
+      FireFightHiyokoAction.JUMP_DURATION +
+      FireFightHiyokoAction.LANDING_DURATION +
+      FireFightHiyokoAction.WALK_DURATION +
+      waterDuration;
+
+    const returnWalkFinished =
+      elapsed >=
+      FireFightHiyokoAction.JUMP_DURATION +
+      FireFightHiyokoAction.LANDING_DURATION +
+      FireFightHiyokoAction.WALK_DURATION +
+      waterDuration +
+      FireFightHiyokoAction.RETURN_WALK_DURATION;
+
+
+    const actionFinished =
+      elapsed >=
+      FireFightHiyokoAction.JUMP_DURATION +
+      FireFightHiyokoAction.LANDING_DURATION +
+      FireFightHiyokoAction.WALK_DURATION +
+      waterDuration +
+      FireFightHiyokoAction.RETURN_WALK_DURATION +
+      FireFightHiyokoAction.JUMP_DURATION;
+
+    if (walkFinished && !waterFinished) {
+      vehicle.actionState.hoseRemoved = true;
+    }
+    if (waterFinished) {
+      vehicle.actionState.hoseRemoved = false;
+    }
+    if (actionFinished) {
+      vehicle.actionState.hiyoko.visible = false;
+      vehicle.actionState.hiyoko.jumpStartTime = null;
+    }
+
+    //音管理
+
+    const WALK_SOUND_INTERVAL = 280;
+
+    const isWalking =
+      (jumpFinished && !walkFinished) ||
+      (waterFinished && !returnWalkFinished);
+
+    if (isWalking) {
+      if (
+        hiyoko.lastWalkSoundTime == null ||
+        now - hiyoko.lastWalkSoundTime >= WALK_SOUND_INTERVAL
+      ) {
+        soundManagerRef.current.play("hiyokoWalk01");
+        hiyoko.lastWalkSoundTime = now;
+      }
+    } else {
+      hiyoko.lastWalkSoundTime = null;
+    }
+
+    if (walkFinished && !hiyoko.soundPlayed.hose) {
+      soundManagerRef.current.play("fireFightAction01");
+      hiyoko.soundPlayed.hose = true;
+    }
+    if (walkFinished && !hiyoko.soundPlayed.spray) {
+      soundManagerRef.current.play("fireFightAction02");
+      hiyoko.soundPlayed.spray = true;
+    }
+    if (returnWalkFinished && !hiyoko.soundPlayed.returnJump) {
+      soundManagerRef.current.play("hiyokoNoru");
+      hiyoko.soundPlayed.returnJump = true;
+    }
+  }
+
   //車移動部署
   function updateVehicle(now, deltaTime) {
     setVehicles((prevVehicles) => {
@@ -2665,6 +3565,16 @@ function GameView() {
         target: { ...newVehicles[0].target },
         transform: { ...newVehicles[0].transform },
         effect: { ...newVehicles[0].effect },
+
+        actionState: newVehicles[0].actionState
+          ? {
+            ...newVehicles[0].actionState,
+
+            hiyoko: newVehicles[0].actionState.hiyoko
+              ? { ...newVehicles[0].actionState.hiyoko }
+              : undefined,
+          }
+          : undefined,
       };
 
       const master = vehicleMaster[vehicle.type];
@@ -2678,6 +3588,7 @@ function GameView() {
       updatePosition(vehicle, master, dx, dy, distance, deltaTime);
       updateColoPuddleCollision(vehicle);
       updateEffect(vehicle, now);
+      updateFireFightAction(vehicle, now);
 
       newVehicles[0] = vehicle;
       return newVehicles;
@@ -2715,7 +3626,7 @@ function GameView() {
       "bus05", "bus06", "bus07", "bus08",
 
       "ambulance01",
-      "fireEngine01",
+      "fireEngine01", "fireFightAction01", "fireFightAction02",
 
       "train01",
       "crossing01",
@@ -2725,7 +3636,7 @@ function GameView() {
       "puddle01", "puddle02", "puddle03", "puddle04",
       "puddle05", "puddle06", "puddle07", "puddle08",
 
-      "npcHiyoko01",
+      "npcHiyoko01", "hiyokoWalk01",
 
       "menuBackground01",
       "menuTag01",
@@ -2830,11 +3741,12 @@ function GameView() {
       "select01",
       "menuOpen01",
 
-      "busHorn", "ambulanceSiren", "fireEngineSiren",
+      "busHorn", "ambulanceSiren",
+      "fireEngineSiren", "fireFightAction01", "fireFightAction02",
       "train01", "crossing", "trainHorn01", "passengerAppear01",
 
-      "hiyokoJump",
-      "busHiyoko01",
+      "hiyokoJump", "hiyokoWalk01",
+      "hiyokoNoru",
     ];
 
     Promise.all(soundNames.map((name) => soundManager.load(name, `${import.meta.env.BASE_URL}sounds/${name}.mp3`)))
