@@ -1158,6 +1158,65 @@ function GameView() {
     ctx.restore();
   }
 
+  //消防ひよこ影つけ係
+  function drawFireFightHiyokoShadow(ctx, vehicle, now) {
+
+    const action =
+      getFireFightHiyokoPosition(vehicle, now);
+
+    if (!action) {
+      return;
+    }
+
+    const {
+      shadowX,
+      shadowY,
+      jumpProgress,
+      returnWalkFinished,
+      returnJumpProgress,
+    } = action;
+
+
+
+    let shadowScale = 1;
+
+    if (jumpProgress < 1) {
+      shadowScale =
+        1 - Math.sin(jumpProgress * Math.PI) * 0.4;
+    }
+
+    if (
+      returnWalkFinished &&
+      returnJumpProgress < 1
+    ) {
+      shadowScale =
+        1 - Math.sin(returnJumpProgress * Math.PI) * 0.4;
+    }
+
+
+    ctx.save();
+
+    ctx.globalAlpha = 0.2;
+
+    ctx.beginPath();
+
+    ctx.ellipse(
+      shadowX,
+      shadowY + 28,
+      24 * shadowScale,
+      8 * shadowScale,
+      0,
+      0,
+      Math.PI * 2
+    );
+
+
+    ctx.fillStyle = "black";
+    ctx.fill();
+
+    ctx.restore();
+  }
+
   function getFireFightHiyokoPosition(vehicle, now) {
 
     const hiyoko = vehicle.actionState?.hiyoko;
@@ -1407,9 +1466,35 @@ function GameView() {
       }
     }
 
+
+    //========影つけ用座標管理部========
+
+    let shadowX = x;
+    let shadowY = y;
+
+    //登場ジャンプ中
+    if (jumpProgress < 1) {
+      shadowY +=
+        Math.sin(jumpProgress * Math.PI) *
+        FireFightHiyokoAction.JUMP_HEIGHT;
+    }
+
+    //帰還ジャンプ中
+    if (
+      returnWalkFinished &&
+      returnJumpProgress < 1
+    ) {
+      shadowY +=
+        Math.sin(returnJumpProgress * Math.PI) *
+        FireFightHiyokoAction.JUMP_HEIGHT;
+    }
+
+
     return {
       x,
       y,
+      shadowX,
+      shadowY,
 
       elapsed,
       jumpProgress,
@@ -1982,6 +2067,7 @@ function GameView() {
     drawVehicle(ctx, vehicle);
 
     if (vehicle.type === "fireEngine") {
+      drawFireFightHiyokoShadow(ctx, vehicle, now);
       drawFireFightHiyoko(ctx, vehicle, now);
       drawFireFightWater(ctx, vehicle, now);
     }
