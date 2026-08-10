@@ -1474,9 +1474,7 @@ function GameView() {
 
     //登場ジャンプ中
     if (jumpProgress < 1) {
-      shadowY +=
-        Math.sin(jumpProgress * Math.PI) *
-        FireFightHiyokoAction.JUMP_HEIGHT;
+      shadowY = landingY;
     }
 
     //帰還ジャンプ中
@@ -1484,9 +1482,7 @@ function GameView() {
       returnWalkFinished &&
       returnJumpProgress < 1
     ) {
-      shadowY +=
-        Math.sin(returnJumpProgress * Math.PI) *
-        FireFightHiyokoAction.JUMP_HEIGHT;
+      shadowY = landingY;
     }
 
 
