@@ -285,6 +285,27 @@ const vehicleMaster = {
 
   },
 
+  policeCar: {
+    width: 150,
+    height: 80,
+
+    speed: 400,
+
+    canChangeColor: false,
+    defaultSkin: "normal",
+    skins: {
+      normal: "policeCar01",
+    },
+
+    shadow: {
+      offsetY: 30,
+      width: 55,
+      height: 18,
+    },
+
+    actionSound: "policeCarSiren",
+
+  },
 
 
   /* 今後実装予定
@@ -557,7 +578,18 @@ const vehicleMenuItems = [
 
     selectOffsetX: -90,
     selectOffsetY: -90,
+  }, 
+ {
+    type: "policeCar",
+    skin: "normal",
+    offsetX: 1400,
+    lineY: 300,
+    baselineOffset: 0,
+
+    selectOffsetX: -90,
+    selectOffsetY: -90,
   },
+
 ]
 
 //電車と踏切の情報だよ。
@@ -2255,6 +2287,8 @@ function GameView() {
       return;
     }
 
+    
+
 
     setVehicles((prevVehicles) => {
       const newVehicles = [...prevVehicles]; //newVehicle君に今の値をこぴ
@@ -3709,6 +3743,7 @@ function GameView() {
 
       "ambulance01",
       "fireEngine01", "fireFightAction01", "fireFightAction02",
+      "policeCar01",
 
       "train01",
       "crossing01",
@@ -3825,6 +3860,7 @@ function GameView() {
 
       "busHorn", "ambulanceSiren",
       "fireEngineSiren", "fireFightAction01", "fireFightAction02",
+      "policeCarSiren","policeCarAction01",
       "train01", "crossing", "trainHorn01", "passengerAppear01",
 
       "hiyokoJump", "hiyokoWalk01",
