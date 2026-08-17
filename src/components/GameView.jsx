@@ -78,6 +78,13 @@ const FireFightWaterAction = {
   outroFrames: [4, 5, 6],
 };
 
+const PoliceCarAction = {
+  FRAME_INTERVAL: 120,
+  LOOP_COUNT: 3,
+
+  frames: [2, 3, 4, 3],
+};
+
 const NPCBehaviorType = {
   WANDER: "wander",
   FLEE: "flee",
@@ -304,6 +311,10 @@ const vehicleMaster = {
     },
 
     actionSound: "policeCarSiren",
+
+    initialActionState: {
+      startTime: null,
+    },
 
   },
 
@@ -562,7 +573,7 @@ const vehicleMenuItems = [
   {
     type: "ambulance",
     skin: "normal",
-    offsetX: 700,
+    offsetX: 650,
     lineY: 300,
     baselineOffset: 12,
 
@@ -572,17 +583,17 @@ const vehicleMenuItems = [
   {
     type: "fireEngine",
     skin: "normal",
-    offsetX: 1100,
+    offsetX: 1000,
     lineY: 300,
     baselineOffset: 0,
 
     selectOffsetX: -90,
     selectOffsetY: -90,
-  }, 
- {
+  },
+  {
     type: "policeCar",
     skin: "normal",
-    offsetX: 1400,
+    offsetX: 1350,
     lineY: 300,
     baselineOffset: 0,
 
@@ -1681,7 +1692,7 @@ function GameView() {
   }
 
   //のりもの描画係
-  function drawVehicle(ctx, vehicle) {
+  function drawVehicle(ctx, vehicle, now) {
     const master = vehicleMaster[vehicle.type];
 
     const imageName = master.skins[vehicle.skin]; //何色？
@@ -1694,6 +1705,29 @@ function GameView() {
 
     if (vehicle.type === "fireEngine" && vehicle.actionState?.hoseRemoved) {
       frame = master.hoseRemovedFrame;
+    }
+
+    if (
+      vehicle.type === "policeCar" &&
+      vehicle.actionState?.startTime != null
+    ) {
+      const elapsed =
+        now - vehicle.actionState.startTime;
+
+      const frameIndex = Math.floor(
+        elapsed / PoliceCarAction.FRAME_INTERVAL
+      );
+
+      const totalFrames =
+        PoliceCarAction.frames.length *
+        PoliceCarAction.LOOP_COUNT;
+
+      if (frameIndex < totalFrames) {
+        frame =
+          PoliceCarAction.frames[
+          frameIndex % PoliceCarAction.frames.length
+          ];
+      }
     }
 
     const sx = frame * frameWidth;       //アニメーション用の場所指定してるよ。
@@ -2092,7 +2126,7 @@ function GameView() {
       shadow.width,
       shadow.height
     );
-    drawVehicle(ctx, vehicle);
+    drawVehicle(ctx, vehicle, now);
 
     if (vehicle.type === "fireEngine") {
       drawFireFightHiyokoShadow(ctx, vehicle, now);
@@ -2278,6 +2312,38 @@ function GameView() {
       }
     }
 
+    if (vehicle.type === "policeCar") {
+      const vehicleRect = getVehicleRect(vehicle);
+
+      if (isPointInsideRect(x, y, vehicleRect)) {
+        const isActionRunning =
+          vehicle.actionState?.startTime != null;
+
+        if (!isActionRunning) {
+          setVehicles((prevVehicles) => {
+            const newVehicles = [...prevVehicles];
+
+            const vehicle = {
+              ...newVehicles[0],
+
+              actionState: {
+                ...newVehicles[0].actionState,
+                startTime: now,
+              },
+            };
+
+            newVehicles[0] = vehicle;
+
+            return newVehicles;
+          });
+
+          soundManagerRef.current.play("policeCarAction01");
+        }
+
+        return;
+      }
+    }
+
     //アクション中は移動しないよ！
     const fireFightActionRunning =
       vehicle.type === "fireEngine" &&
@@ -2287,7 +2353,7 @@ function GameView() {
       return;
     }
 
-    
+
 
 
     setVehicles((prevVehicles) => {
@@ -3670,6 +3736,30 @@ function GameView() {
     }
   }
 
+  //パトカーアクション更新係
+
+  function updatePoliceCarAction(vehicle, now) {
+    if (vehicle.type !== "policeCar") {
+      return;
+    }
+
+    const startTime =
+      vehicle.actionState?.startTime;
+
+    if (startTime == null) {
+      return;
+    }
+
+    const actionDuration =
+      PoliceCarAction.frames.length *
+      PoliceCarAction.FRAME_INTERVAL *
+      PoliceCarAction.LOOP_COUNT;
+
+    if (now - startTime >= actionDuration) {
+      vehicle.actionState.startTime = null;
+    }
+  }
+
   //車移動部署
   function updateVehicle(now, deltaTime) {
     setVehicles((prevVehicles) => {
@@ -3705,6 +3795,8 @@ function GameView() {
       updateColoPuddleCollision(vehicle);
       updateEffect(vehicle, now);
       updateFireFightAction(vehicle, now);
+      updatePoliceCarAction(vehicle, now);
+
 
       newVehicles[0] = vehicle;
       return newVehicles;
@@ -3758,6 +3850,8 @@ function GameView() {
       "menuBackground01",
       "menuTag01",
       "selectAnimation01",
+
+      "bubble"
     ];
 
     //読み込み進捗君。全部揃ったら描いてくれる。
@@ -3860,7 +3954,7 @@ function GameView() {
 
       "busHorn", "ambulanceSiren",
       "fireEngineSiren", "fireFightAction01", "fireFightAction02",
-      "policeCarSiren","policeCarAction01",
+      "policeCarSiren", "policeCarAction01",
       "train01", "crossing", "trainHorn01", "passengerAppear01",
 
       "hiyokoJump", "hiyokoWalk01",
