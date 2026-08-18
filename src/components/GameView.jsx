@@ -56,34 +56,7 @@ const NPCAction = {
   JUMP_HEIGHT: 85,
 };
 
-const FireFightHiyokoAction = {
-  JUMP_DURATION: 500,
-  LANDING_DURATION: 230,
-  JUMP_HEIGHT: 60,
 
-  WALK_DURATION: 800,
-
-  WALK_DISTANCE_HORIZONTAL: 180,
-  WALK_DISTANCE_VERTICAL: 30,
-
-  RETURN_WALK_DURATION: 800,
-};
-
-const FireFightWaterAction = {
-  FRAME_INTERVAL: 100,
-  LOOP_DURATION: 1000,
-
-  introFrames: [0, 1],
-  loopFrames: [2, 3],
-  outroFrames: [4, 5, 6],
-};
-
-const PoliceCarAction = {
-  FRAME_INTERVAL: 120,
-  LOOP_COUNT: 3,
-
-  frames: [2, 3, 4, 3],
-};
 
 const NPCBehaviorType = {
   WANDER: "wander",
@@ -333,7 +306,75 @@ const vehicleMaster = {
 
 };
 
-//インク池の情報たち
+
+//========車アクション用情報========
+
+const FireFightHiyokoAction = {
+  JUMP_DURATION: 500,
+  LANDING_DURATION: 230,
+  JUMP_HEIGHT: 60,
+
+  WALK_DURATION: 800,
+
+  WALK_DISTANCE_HORIZONTAL: 180,
+  WALK_DISTANCE_VERTICAL: 30,
+
+  RETURN_WALK_DURATION: 800,
+};
+
+const FireFightWaterAction = {
+  FRAME_INTERVAL: 100,
+  LOOP_DURATION: 1000,
+
+  introFrames: [0, 1],
+  loopFrames: [2, 3],
+  outroFrames: [4, 5, 6],
+};
+
+const PoliceCarAction = {
+  FRAME_INTERVAL: 120,
+  LOOP_COUNT: 3,
+
+  frames: [2, 3, 4, 3],
+};
+
+
+//========シャボン玉たちの情報========
+
+const BubbleGame = {
+  IMAGE_SIZE: 350,
+  HIT_SIZE: 240,
+
+  MAP_BUBBLE_SIZE: 160,  //マップにおちてるシャボン玉
+
+  COUNT: 6,
+
+  MIN_SIZE: 160,
+  MAX_SIZE: 380,
+
+  MIN_SPEED: 35,
+  MAX_SPEED: 70,
+
+  MIN_SWAY: 20,
+  MAX_SWAY: 55,
+
+  MIN_SWAY_SPEED: 0.001,
+  MAX_SWAY_SPEED: 0.0025,
+
+  MIN_DRIFT: -15,
+  MAX_DRIFT: 15,
+
+  GROW_DURATION: 90,
+
+  POP_FRAME_INTERVAL: 60,
+  POP_FRAME_COUNT: 3,
+
+  RESPAWN_DELAY: 3000,
+};
+
+
+//=========インク池の情報たち========
+
 const colorPuddleMaster = [
   {
     id: 1,
@@ -712,6 +753,15 @@ function GameView() {
     colorPuddlesRef.current = createRandomColorPuddles();
   }
 
+
+  //シャボン玉管理人
+  const bubbleGameRef = useRef({
+    mapBubble: null,
+    bubbles: [],
+    respawnTime: null,
+  });
+
+
   //のりものたちの状態の記録係
   const [vehicles, setVehicles] = useState([
     {
@@ -883,6 +933,40 @@ function GameView() {
 
     ctx.fillStyle = "rgba(0,0,0,0.2)";
     ctx.fill();
+  }
+
+  //=========シャボン玉=========
+
+  //しゃぼんだまを置く係
+
+  function createMapBubble() {
+    bubbleGameRef.current.mapBubble = {
+      x: getRandomNumber(150, 1770),
+      y: getRandomNumber(150, 800),
+    };
+
+    bubbleGameRef.current.respawnTime = null;
+  }
+
+  //ちちゃいシャボン玉を描く係
+  function drawMapBubble(ctx) {
+    const bubble = bubbleGameRef.current.mapBubble;
+
+    if (!bubble) {
+      return;
+    }
+
+    const image = imagesRef.current.bubble;
+
+    const size = BubbleGame.MAP_BUBBLE_SIZE;
+
+    ctx.drawImage(
+      image,
+      bubble.x - size / 2,
+      bubble.y - size / 2,
+      size,
+      size
+    );
   }
 
   //ひよこを1羽描く係
@@ -2097,6 +2181,83 @@ function GameView() {
     );
   }
 
+
+
+  //しゃぼんだまを描く係
+
+  function drawBubbles(ctx, now) {
+    const image = imagesRef.current.bubble;
+    const popImage = imagesRef.current.bubblePop;
+
+    for (const bubble of bubbleGameRef.current.bubbles) {
+
+      if (bubble.state === "floating") {
+        ctx.drawImage(
+          image,
+          bubble.x - bubble.size / 2,
+          bubble.y - bubble.size / 2,
+          bubble.size,
+          bubble.size
+        );
+
+        continue;
+      }
+
+      const elapsed =
+        now - bubble.popStartTime;
+
+      //ぷくっ
+      if (elapsed < BubbleGame.GROW_DURATION) {
+        const progress =
+          elapsed / BubbleGame.GROW_DURATION;
+
+        const scale =
+          1 + progress * 0.15;
+
+        const size =
+          bubble.size * scale;
+
+        ctx.drawImage(
+          image,
+          bubble.x - size / 2,
+          bubble.y - size / 2,
+          size,
+          size
+        );
+
+        continue;
+      }
+
+      //ぱちん！
+      const popElapsed =
+        elapsed - BubbleGame.GROW_DURATION;
+
+      const frame =
+        Math.floor(
+          popElapsed /
+          BubbleGame.POP_FRAME_INTERVAL
+        );
+
+      if (frame >= BubbleGame.POP_FRAME_COUNT) {
+        continue;
+      }
+
+      ctx.drawImage(
+        popImage,
+
+        frame * BubbleGame.IMAGE_SIZE,
+        0,
+        BubbleGame.IMAGE_SIZE,
+        BubbleGame.IMAGE_SIZE,
+
+        bubble.x - bubble.size / 2,
+        bubble.y - bubble.size / 2,
+        bubble.size,
+        bubble.size
+      );
+    }
+  }
+
   //描画担当本部
   function draw(ctx, now) {
     const background = imagesRef.current.background;
@@ -2112,6 +2273,9 @@ function GameView() {
       drawColorPuddle(ctx, puddle);
     }
 
+    //しゃぼんだま配置
+    drawMapBubble(ctx);
+
     //NPC描画係
     drawNPCs(ctx, now);
 
@@ -2119,6 +2283,7 @@ function GameView() {
     const vehicle = vehiclesRef.current[0];
     const master = vehicleMaster[vehicle.type];
     const shadow = master.shadow;
+
     drawShadow(
       ctx,
       vehicle.position.x,
@@ -2126,6 +2291,7 @@ function GameView() {
       shadow.width,
       shadow.height
     );
+
     drawVehicle(ctx, vehicle, now);
 
     if (vehicle.type === "fireEngine") {
@@ -2140,6 +2306,8 @@ function GameView() {
     drawTrainPassengers(ctx, now);
     //踏切描画係
     drawCrossing(ctx);
+    //しゃぼんだま描画係
+    drawBubbles(ctx, now);
     //タップエフェクト描画係
     drawTapEffects(ctx, now);
     //メニュー描画係
@@ -2161,6 +2329,41 @@ function GameView() {
     const y = event.nativeEvent.offsetY / scale;
 
     const now = performance.now();
+
+
+    //遊び中のシャボン玉を触ったかな？
+    const tappedBubble =
+      getTappedBubble(x, y);
+
+    if (tappedBubble) {
+      tappedBubble.state = "popping";
+      tappedBubble.popStartTime = now;
+
+      const popSounds = [
+        "bubblePop01",
+        "bubblePop02",
+        "bubblePop03",
+      ];
+
+      const soundName =
+        popSounds[Math.floor(Math.random() * popSounds.length)];
+
+      soundManagerRef.current.play(soundName);
+
+      return;
+    }
+
+    //マップの小さいシャボン玉を触ったかな？
+    if (getTappedMapBubble(x, y)) {
+      const bubble =
+        bubbleGameRef.current.mapBubble;
+
+      startBubbleGame(now);
+      soundManagerRef.current.play("bubble");
+
+      return;
+    }
+
 
     //ひよこを触ったかな？
     const tappedNPC =
@@ -2496,6 +2699,69 @@ function GameView() {
 
     return null;
   }
+
+
+  //シャボン玉おさわりチェック係
+
+  function isPointInsideBubble(x, y, bubble) {
+    const hitDiameter =
+      bubble.size *
+      (BubbleGame.HIT_SIZE / BubbleGame.IMAGE_SIZE);
+
+    const radius =
+      hitDiameter / 2;
+
+    const dx = x - bubble.x;
+    const dy = y - bubble.y;
+
+    return (
+      dx * dx + dy * dy <=
+      radius * radius
+    );
+  }
+
+  //ちちゃいんままタップ判定係
+  function getTappedMapBubble(x, y) {
+    const bubble =
+      bubbleGameRef.current.mapBubble;
+
+    if (!bubble) {
+      return false;
+    }
+
+    return isPointInsideBubble(
+      x,
+      y,
+      {
+        ...bubble,
+        size: BubbleGame.MAP_BUBBLE_SIZE,
+      }
+    );
+  }
+
+  //おおきいんままタップ判定係
+  function getTappedBubble(x, y) {
+    for (
+      let i =
+        bubbleGameRef.current.bubbles.length - 1;
+      i >= 0;
+      i--
+    ) {
+      const bubble =
+        bubbleGameRef.current.bubbles[i];
+
+      if (bubble.state !== "floating") {
+        continue;
+      }
+
+      if (isPointInsideBubble(x, y, bubble)) {
+        return bubble;
+      }
+    }
+
+    return null;
+  }
+
 
   //メニュー付箋位置情報システム
   function getVehicleMenuTabRect() {
@@ -3803,6 +4069,112 @@ function GameView() {
     });
   }
 
+
+  //しゃぼんだまぷくぷく係
+  function startBubbleGame(now) {
+    const bubbles = [];
+
+    for (let i = 0; i < BubbleGame.COUNT; i++) {
+      const startX = getRandomNumber(100, 1820);
+      const startY = getRandomNumber(300, 1000);
+
+      bubbles.push({
+        x: startX,
+        y: startY,
+        baseX: startX,
+
+        size: getRandomNumber(
+          BubbleGame.MIN_SIZE,
+          BubbleGame.MAX_SIZE
+        ),
+        speed: getRandomNumber(
+          BubbleGame.MIN_SPEED,
+          BubbleGame.MAX_SPEED
+        ),
+
+        swayAmount: getRandomNumber(
+          BubbleGame.MIN_SWAY,
+          BubbleGame.MAX_SWAY
+        ),
+
+        swaySpeed: getRandomNumber(
+          BubbleGame.MIN_SWAY_SPEED,
+          BubbleGame.MAX_SWAY_SPEED
+        ),
+
+        driftX: getRandomNumber(
+          BubbleGame.MIN_DRIFT,
+          BubbleGame.MAX_DRIFT
+        ),
+
+        startTime: now,
+
+        state: "floating",
+        popStartTime: null,
+      });
+    }
+
+    bubbleGameRef.current.mapBubble = null;
+    bubbleGameRef.current.bubbles = bubbles;
+  }
+
+
+  //しゃぼんだまゆらゆら係
+
+  function updateBubbles(now, deltaTime) {
+    const bubbleGame = bubbleGameRef.current;
+
+    for (const bubble of bubbleGame.bubbles) {
+
+      if (bubble.state === "floating") {
+        bubble.y -= bubble.speed * deltaTime;
+
+        bubble.baseX += bubble.driftX * deltaTime;
+
+        bubble.x =
+          bubble.baseX +
+          Math.sin(
+            (now - bubble.startTime) * bubble.swaySpeed
+          ) *
+          bubble.swayAmount;
+      }
+    }
+
+    bubbleGame.bubbles =
+      bubbleGame.bubbles.filter((bubble) => {
+
+        if (bubble.state === "popping") {
+          const elapsed =
+            now - bubble.popStartTime;
+
+          const popDuration =
+            BubbleGame.GROW_DURATION +
+            BubbleGame.POP_FRAME_INTERVAL *
+            BubbleGame.POP_FRAME_COUNT;
+
+          return elapsed < popDuration;
+        }
+
+        return bubble.y + bubble.size / 2 > 0;
+      });
+
+    if (
+      bubbleGame.mapBubble === null &&
+      bubbleGame.bubbles.length === 0
+    ) {
+      if (bubbleGame.respawnTime === null) {
+        bubbleGame.respawnTime =
+          now + BubbleGame.RESPAWN_DELAY;
+      }
+
+      if (now >= bubbleGame.respawnTime) {
+        createMapBubble();
+      }
+    }
+  }
+
+
+
   //現場監督
   function update(now, deltaTime) {
     updateVehicle(now, deltaTime);
@@ -3811,6 +4183,7 @@ function GameView() {
     updateCrossing(now);
     updateTrain(now, deltaTime);
     updateTapEffects(now);
+    updateBubbles(now, deltaTime);
 
     const ctx = ctxRef.current;
 
@@ -3851,7 +4224,7 @@ function GameView() {
       "menuTag01",
       "selectAnimation01",
 
-      "bubble"
+      "bubble", "bubblePop",
     ];
 
     //読み込み進捗君。全部揃ったら描いてくれる。
@@ -3861,6 +4234,7 @@ function GameView() {
       loaded++;
 
       if (loaded === imageNames.length) {
+        createMapBubble();
         draw(ctx, performance.now());
       }
     }
@@ -3959,6 +4333,9 @@ function GameView() {
 
       "hiyokoJump", "hiyokoWalk01",
       "hiyokoNoru",
+
+      "bubble", "bubblePop01", "bubblePop02", "bubblePop03",
+
     ];
 
     Promise.all(soundNames.map((name) => soundManager.load(name, `${import.meta.env.BASE_URL}sounds/${name}.mp3`)))
