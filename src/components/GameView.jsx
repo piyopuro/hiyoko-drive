@@ -900,6 +900,13 @@ function GameView() {
     };
   }, []);
 
+  //ランダム再生係
+  function playRandomSound(soundNames) {
+    const soundName =
+      soundNames[Math.floor(Math.random() * soundNames.length)];
+
+    soundManagerRef.current.play(soundName);
+  }
 
   //影つけ係
   function drawShadow(ctx, x, y, width, height) {
@@ -2339,16 +2346,12 @@ function GameView() {
       tappedBubble.state = "popping";
       tappedBubble.popStartTime = now;
 
-      const popSounds = [
+      playRandomSound([
         "bubblePop01",
         "bubblePop02",
         "bubblePop03",
-      ];
+      ]);
 
-      const soundName =
-        popSounds[Math.floor(Math.random() * popSounds.length)];
-
-      soundManagerRef.current.play(soundName);
 
       return;
     }
@@ -4102,6 +4105,8 @@ function GameView() {
           BubbleGame.MAX_SWAY_SPEED
         ),
 
+        swayPhase: Math.random() * Math.PI * 2,
+
         driftX: getRandomNumber(
           BubbleGame.MIN_DRIFT,
           BubbleGame.MAX_DRIFT
@@ -4134,7 +4139,7 @@ function GameView() {
         bubble.x =
           bubble.baseX +
           Math.sin(
-            (now - bubble.startTime) * bubble.swaySpeed
+            (now - bubble.startTime) * bubble.swaySpeed + bubble.swayPhase
           ) *
           bubble.swayAmount;
       }
