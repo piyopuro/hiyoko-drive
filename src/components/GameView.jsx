@@ -2,509 +2,99 @@ import { useState, useEffect, useRef } from "react";
 import { VERSION } from "../version";
 import SoundManager from "../SoundManager";
 
-const Direction = {
-  RIGHT: 0,
-  LEFT: 1,
-  FRONT: 2,
-  BACK: 3,
-}
-const Frame = {
-  IDLE: 0,
-  MOVE: 1,
-};
+//ゲーム内共通
+import {
+  getRandomNumber,
+} from "../game/utils/math";
+import {
+  drawShadow,
+} from "../game/utils/draw";
+
+
+//車基本ステータス
+import {
+  Direction,
+  Frame,
+  State,
+  vehicleMaster,
+} from "../game/constants/vehicleMaster";
+
+//車メニュー関連
+import {
+  VehicleMenu,
+  vehicleMenuItems,
+} from "../game/constants/vehicleMenu";
+
+//NPC関連
+import {
+  NPCState,
+  NPCBehaviorType,
+  NPCFleeConfig,
+  npcMaster,
+} from "../game/constants/npcMaster";
+import {
+  createNPC,
+  isNPCJumping,
+  startNPCJump,
+  drawNPCs,
+  updateNPCDirection,
+  updateNPCAnimation,
+  chooseNextNPCTarget,
+  tryStartNPCFlee,
+} from "../game/npc/npc";
+
+//エフェクト関連
+import {
+  Effect,
+  TapEffect,
+  colorPuddleMaster,
+} from "../game/constants/gameConstants";
+
+//電車関連
+import {
+  Railway,
+} from "../game/constants/railwayConfig";
+import {
+  drawCrossing,
+  drawTrain,
+  drawTrainPassengers,
+  getCrossingRect,
+  getTrainRect,
+  getTappedTrainCarIndex,
+  startTrain,
+  createTrainPassenger,
+  updateCrossing,
+  updateTrain
+} from "../game/railway/railway";
+
+
+
+//車アクション関連
+import {
+  tryStartNPCBoarding,
+  updateNPCBoarding,
+  updateNPCRidingBus,
+  updateNPCExitingBus,
+} from "../game/vehicle/busAction";
+
+import {
+  getFireFightHiyokoPosition,
+  drawFireFightHiyoko,
+  drawFireFightHiyokoShadow,
+  drawFireFightWater,
+  updateFireFightAction,
+} from "../game/vehicle/fireEngineAction";
+
+import {
+  PoliceCarAction,
+  updatePoliceCarAction,
+} from "../game/vehicle/policeCarAction";
+
+//その他
+import { BubbleGame } from "../game/constants/bubbleConfig";
 
-const State = {
-  STOP: 0,
-  MOVE: 1,
-};
 
-const Effect = {
-  DURATION: 300,
-  AMOUNT: 0.2,
-}
 
-const TapEffect = {
-  DURATION: 400,
-
-  IMAGE_WIDTH: 64,
-  IMAGE_HEIGHT: 64,
-
-  MIN_SIZE: 35,
-  MAX_SIZE: 65,
-
-  MIN_DISTANCE: 20,
-  MAX_DISTANCE: 75,
-};
-
-//========ひよこたち========
-
-const NPCState = {
-  IDLE: "idle",
-  WALK: "walk",
-};
-
-const NPCDirection = {
-  FRONT: "front",
-  BACK: "back",
-  RIGHT: "right",
-  LEFT: "left",
-};
-
-const NPCAction = {
-  JUMP_DURATION: 500,
-  LANDING_DURATION: 230,
-  JUMP_HEIGHT: 85,
-};
-
-
-
-const NPCBehaviorType = {
-  WANDER: "wander",
-  FLEE: "flee",
-  BOARD_BUS: "boardBus",
-  RIDE_BUS: "rideBus",
-  EXIT_BUS: "exitBus",
-};
-
-const NPCFleeConfig = {
-  AVOID_DISTANCE: 170,       //この距離までバスが来たら逃げる
-  FLEE_DISTANCE: 220,        //どれくらい先まで逃げるか
-  FLEE_SPEED_MULTIPLIER: 2.5, //普段の何倍で走るか
-};
-
-const NPCWalkArea = {
-  LEFT: 100,
-  RIGHT: 1820,
-  TOP: 120,
-  BOTTOM: 800,
-};
-
-const BusPassenger = {
-  BOARD_DISTANCE: 170,
-  BOARD_ARRIVAL_DISTANCE: 4,
-
-  EXIT_DELAY: 400,
-  REBOARD_COOLDOWN: 3000,
-
-  //バスの出入口
-  doorOffsets: {
-    [Direction.RIGHT]: { x: 90, y: 28 },
-    [Direction.LEFT]: { x: -90, y: 68 },
-    [Direction.FRONT]: { x: 45, y: 45 },
-    [Direction.BACK]: { x: -45, y: 45 },
-  },
-
-  // バスに乗っている間の位置
-  ridingOffsets: {
-    [Direction.RIGHT]: { x: -32, y: 24 },
-    [Direction.LEFT]: { x: 33, y: 24 },
-
-    // 前後は隠れるので仮位置
-    [Direction.FRONT]: { x: 10, y: 10 },
-    [Direction.BACK]: { x: 10, y: 10 },
-  },
-};
-
-//ひよこたちの基本情報
-const npcMaster = {
-  hiyoko: {
-    imageKey: "npcHiyoko01",
-
-    frameWidth: 64,
-    frameHeight: 64,
-
-    drawWidth: 64,
-    drawHeight: 64,
-
-    speed: 75,
-
-    animationInterval: 180,
-
-    walkFrames: [1, 0, 2, 0],
-
-    directionRows: {
-      front: 0,
-      back: 1,
-      right: 2,
-      left: 3,
-    },
-
-    waitTime: {
-      min: 1000,
-      max: 3000,
-    },
-
-    shadow: {
-      offsetY: 0,
-      width: 18,
-      height: 6,
-    },
-  },
-
-  /*
-  実装予定
-
-  rareHiyoko: {
-    imageKey: "npcRareHiyoko01",
-
-    frameWidth: 64,
-    frameHeight: 64,
-
-    drawWidth: 64,
-    drawHeight: 64,
-
-    speed: 90,
-
-    animationInterval: 160,
-
-    walkFrames: [1, 0, 2, 0],
-
-    directionRows: {
-      front: 0,
-      back: 1,
-      right: 2,
-      left: 3,
-    },
-
-    waitTime: {
-      min: 800,
-      max: 2000,
-    },
-  },
-  */
-};
-
-//========のりものたちの基本情報========
-const vehicleMaster = {
-  bus: {
-    width: 256,
-    height: 128,
-
-    speed: 300,
-
-    canChangeColor: true,
-
-    defaultSkin: "yellow",
-    skins: {
-      yellow: "bus01",
-      blue: "bus02",
-      green: "bus03",
-      pink: "bus04",
-      red: "bus05",
-      purple: "bus06",
-      limeGreen: "bus07",
-      orange: "bus08",
-    },
-
-    shadow: {
-      offsetY: 50,
-      width: 55,
-      height: 18,
-    },
-
-    actionSound: "busHorn",
-  },
-
-  ambulance: {
-    width: 192,
-    height: 128,
-
-    speed: 400,
-
-    canChangeColor: false,
-    defaultSkin: "normal",
-    skins: {
-      normal: "ambulance01",
-    },
-
-    shadow: {
-      offsetY: 40,
-      width: 55,
-      height: 18,
-    },
-
-    actionSound: "ambulanceSiren",
-
-  },
-
-  fireEngine: {
-    width: 192,
-    height: 128,
-
-    speed: 400,
-
-    canChangeColor: false,
-    defaultSkin: "normal",
-    skins: {
-      normal: "fireEngine01",
-    },
-
-    shadow: {
-      offsetY: 50,
-      width: 55,
-      height: 18,
-    },
-
-    actionSound: "fireEngineSiren",
-
-    hoseRemovedFrame: 2,
-    initialActionState: {
-      hoseRemoved: false,
-
-      hiyoko: {
-        visible: true,
-        jumpStartTime: null,
-
-        soundPlayed: {
-          hose: false,
-          spray: false,
-          returnJump: false,
-        },
-      },
-    },
-
-  },
-
-  policeCar: {
-    width: 150,
-    height: 80,
-
-    speed: 400,
-
-    canChangeColor: false,
-    defaultSkin: "normal",
-    skins: {
-      normal: "policeCar01",
-    },
-
-    shadow: {
-      offsetY: 30,
-      width: 55,
-      height: 18,
-    },
-
-    actionSound: "policeCarSiren",
-
-    initialActionState: {
-      startTime: null,
-    },
-
-  },
-
-
-  /* 今後実装予定
-  bigbus: {
-    width: 256,
-    height: 128,
-
-    speed: 5,
-
-    skins:{
-      normal:"bigbus01",
-    },
-  },    */
-
-};
-
-
-//========車アクション用情報========
-
-const FireFightHiyokoAction = {
-  JUMP_DURATION: 500,
-  LANDING_DURATION: 230,
-  JUMP_HEIGHT: 60,
-
-  WALK_DURATION: 800,
-
-  WALK_DISTANCE_HORIZONTAL: 180,
-  WALK_DISTANCE_VERTICAL: 30,
-
-  RETURN_WALK_DURATION: 800,
-};
-
-const FireFightWaterAction = {
-  FRAME_INTERVAL: 100,
-  LOOP_DURATION: 1000,
-
-  introFrames: [0, 1],
-  loopFrames: [2, 3],
-  outroFrames: [4, 5, 6],
-};
-
-const PoliceCarAction = {
-  FRAME_INTERVAL: 120,
-  LOOP_COUNT: 3,
-
-  frames: [2, 3, 4, 3],
-};
-
-
-//========シャボン玉たちの情報========
-
-const BubbleGame = {
-  IMAGE_SIZE: 350,
-  HIT_SIZE: 240,
-
-  MAP_BUBBLE_SIZE: 160,  //マップにおちてるシャボン玉
-
-  COUNT: 6,
-
-  MIN_SIZE: 160,
-  MAX_SIZE: 380,
-
-  MIN_SPEED: 35,
-  MAX_SPEED: 70,
-
-  MIN_SWAY: 20,
-  MAX_SWAY: 55,
-
-  MIN_SWAY_SPEED: 0.001,
-  MAX_SWAY_SPEED: 0.0025,
-
-  MIN_DRIFT: -15,
-  MAX_DRIFT: 15,
-
-  GROW_DURATION: 90,
-
-  POP_FRAME_INTERVAL: 60,
-  POP_FRAME_COUNT: 3,
-
-  RESPAWN_DELAY: 3000,
-};
-
-
-//=========インク池の情報たち========
-
-const colorPuddleMaster = [
-  {
-    id: 1,
-    radius: 80,
-    skin: "yellow",
-    imageName: "puddle01",
-  },
-  {
-    id: 2,
-    radius: 80,
-    skin: "blue",
-    imageName: "puddle02",
-  },
-  {
-    id: 3,
-    radius: 80,
-    skin: "green",
-    imageName: "puddle03",
-  },
-  {
-    id: 4,
-    radius: 80,
-    skin: "pink",
-    imageName: "puddle04",
-  },
-  {
-    id: 5,
-    radius: 80,
-    skin: "red",
-    imageName: "puddle05",
-  },
-  {
-    id: 6,
-    radius: 80,
-    skin: "purple",
-    imageName: "puddle06",
-  },
-  {
-    id: 7,
-    radius: 80,
-    skin: "limeGreen",
-    imageName: "puddle07",
-  },
-  {
-    id: 8,
-    radius: 80,
-    skin: "orange",
-    imageName: "puddle08",
-  },
-];
-
-//最小値以上、最大値以下のランダムな数を作る係
-function getRandomNumber(min, max) {
-  return Math.random() * (max - min) + min;
-}
-
-//ここからここまで
-function clamp(value, min, max) {
-  return Math.max(
-    min,
-    Math.min(value, max)
-  );
-}
-
-//ひよこを作る係
-function createNPC(type, startX, startY) {
-  const master = npcMaster[type];
-
-  if (!master) {
-    return null;
-  }
-
-  const x = startX ??
-    getRandomNumber(
-      NPCWalkArea.LEFT,
-      NPCWalkArea.RIGHT
-    );
-  const y = startY ??
-    getRandomNumber(
-      NPCWalkArea.TOP,
-      NPCWalkArea.BOTTOM
-    );
-
-  return {
-    id: crypto.randomUUID(),
-
-    type,
-    position: {
-      x,
-      y,
-    },
-    target: {
-      x,
-      y,
-    },
-
-    direction: NPCDirection.FRONT,
-    state: NPCState.IDLE,
-
-    behavior: {
-      type: NPCBehaviorType.WANDER,
-      vehicleId: null,
-
-      isWaitingForArrival: false,
-      rideCount: 0,
-      rideTargetCount: 0,
-
-      exitAt: 0,
-      canBoardAfter: 0,
-    },
-
-    frame: 0,
-    animationFrameIndex: 0,
-    animationTimer: 0,
-
-    action: {
-      type: null,
-      startTime: 0,
-      duration: 0,
-    },
-
-    waitUntil:
-      performance.now() +
-      getRandomNumber(
-        master.waitTime.min,
-        master.waitTime.max
-      ),
-
-  };
-}
 
 //インク池ランダム配置係
 function createRandomColorPuddles() {
@@ -580,152 +170,6 @@ function createRandomColorPuddles() {
 
   return placedPuddles;
 }
-
-//こちらがおくるまのメニューでございます。
-const VehicleMenu = {
-  TAB_WIDTH: 280,
-  TAB_HEIGHT: 140,
-
-  PANEL_WIDTH: 1740,
-  PANEL_HEIGHT: 980,
-
-  PANEL_Y: 50,
-  TAB_Y: 120,
-
-  TAB_OVERHANG: 150,   //付箋はみ出し具合
-
-  OPEN_DURATION: 300,
-
-  VEHICLE_BASELINE_GAP: 8,  //罫線から車を離す。
-};
-
-//メニューのおくるまです。
-const vehicleMenuItems = [
-  {
-    type: "bus",
-    skin: "yellow",
-    offsetX: 300,
-    lineY: 300,   //メニュー罫線の位置
-    baselineOffset: 0, //タイヤの位置補整
-
-    selectOffsetX: -130,
-    selectOffsetY: -90,
-  },
-  {
-    type: "ambulance",
-    skin: "normal",
-    offsetX: 650,
-    lineY: 300,
-    baselineOffset: 12,
-
-    selectOffsetX: -90,
-    selectOffsetY: -75,
-  },
-  {
-    type: "fireEngine",
-    skin: "normal",
-    offsetX: 1000,
-    lineY: 300,
-    baselineOffset: 0,
-
-    selectOffsetX: -90,
-    selectOffsetY: -90,
-  },
-  {
-    type: "policeCar",
-    skin: "normal",
-    offsetX: 1350,
-    lineY: 300,
-    baselineOffset: 0,
-
-    selectOffsetX: -90,
-    selectOffsetY: -90,
-  },
-
-]
-
-//電車と踏切の情報だよ。
-const Railway = {
-  //踏切
-  CROSSING_X: 300,
-  CROSSING_Y: 950,
-  CROSSING_WIDTH: 128,
-  CROSSING_HEIGHT: 192,
-
-  CROSSING_FRAME_WIDTH: 128,
-  CROSSING_FRAME_HEIGHT: 192,
-
-  CROSSING_FRAME_INTERVAL: 600,
-
-  //電車
-  TRAIN_Y: 920,
-  TRAIN_WIDTH: 1344,
-  TRAIN_HEIGHT: 128,
-  TRAIN_SPEED: 240,
-
-  //踏切を押してから電車が発車するまで
-  START_DELAY: 1200,
-
-  shadow: {
-    offsetY: 55,
-    width: 1310,
-    height: 30,
-  },
-};
-
-//電車の乗客の情報だよ。
-const TrainPassenger = {
-  CAR_WIDTH: 448,
-
-  FRAME_INTERVAL: 140,
-  BOTTOM_Y_FROM_TRAIN_TOP: 69,
-
-  variants: {
-    hiyoko: {
-      imageKey: "tHiyoko",
-      weight: 5,
-
-      frameWidth: 96,
-      frameHeight: 80,
-
-      introFrames: [0, 1, 2],
-      loopFrames: [3, 4, 5, 4],
-    },
-
-    cat01: {
-      imageKey: "tCat01",
-      weight: 1,
-
-      frameWidth: 96,
-      frameHeight: 80,
-
-      introFrames: [0, 1, 2],
-      loopFrames: [3, 4, 5, 4],
-    },
-
-    cat02: {
-      imageKey: "tCat02",
-      weight: 1,
-
-      frameWidth: 96,
-      frameHeight: 80,
-
-      introFrames: [0, 1, 2],
-      loopFrames: [3, 4, 5, 4],
-    },
-
-    cat03: {
-      imageKey: "tCat03",
-      weight: 1,
-
-      frameWidth: 96,
-      frameHeight: 80,
-
-      introFrames: [0, 1, 2],
-      loopFrames: [3, 4, 5, 4],
-    },
-  },
-};
 
 //ゲームの中身を描いてるところだよ。
 function GameView() {
@@ -908,39 +352,6 @@ function GameView() {
     soundManagerRef.current.play(soundName);
   }
 
-  //影つけ係
-  function drawShadow(ctx, x, y, width, height) {
-    ctx.beginPath();
-
-    ctx.ellipse(
-      x,
-      y,
-      width,
-      height,
-      0,
-      0,
-      Math.PI * 2
-    );
-
-    ctx.fillStyle = "rgba(0,0,0,0.2)";
-    ctx.fill();
-  }
-
-  //影（かどまる四角）つけ係
-  function drawRectShadow(ctx, x, y, width, height, radius = 8) {
-    ctx.beginPath();
-
-    ctx.roundRect(
-      x - width / 2,
-      y - height / 2,
-      width,
-      height,
-      radius
-    );
-
-    ctx.fillStyle = "rgba(0,0,0,0.2)";
-    ctx.fill();
-  }
 
   //=========シャボン玉=========
 
@@ -976,811 +387,14 @@ function GameView() {
     );
   }
 
-  //ひよこを1羽描く係
-  function drawNPC(ctx, npc, now) {
-    const master = npcMaster[npc.type];
-    if (!master) {
-      return;
-    }
 
-    const isInsideBus =
-      npc.behavior.type === NPCBehaviorType.RIDE_BUS ||
-      npc.behavior.type === NPCBehaviorType.EXIT_BUS;
 
-    if (!isInsideBus) {
-      drawShadow(
-        ctx,
-        npc.position.x,
-        npc.position.y,
-        master.shadow.width,
-        master.shadow.height
-      );
-    }
 
-    const image = imagesRef.current[master.imageKey];
-    if (!image) {
-      return;
-    }
 
-    const row = master.directionRows[npc.direction];
-    const sx = npc.frame * master.frameWidth;
-    const sy = row * master.frameHeight;
 
-    const jumpTransform = getNPCJumpTransform(npc, now);
 
-    ctx.save();
 
-    //NPCの足元へ移動
-    ctx.translate(
-      npc.position.x,
-      npc.position.y +
-      jumpTransform.offsetY
-    );
 
-    //足元を基準に縦方向へ変形
-    ctx.scale(
-      1,
-      jumpTransform.scaleY
-    );
-
-    ctx.drawImage(
-      image,
-
-      sx,
-      sy,
-      master.frameWidth,
-      master.frameHeight,
-
-      -master.drawWidth / 2,
-      -master.drawHeight,
-
-      master.drawWidth,
-      master.drawHeight
-    );
-
-    ctx.restore();
-  }
-
-  //全てのひよこたちを描く係
-  function drawNPCs(ctx, now) {
-    for (const npc of npcsRef.current) {
-      drawNPC(ctx, npc, now);
-    }
-  }
-
-
-  //消防ひよこ描画本部
-  function drawFireFightHiyoko(ctx, vehicle, now) {
-    const image = imagesRef.current.fireFightAction01;
-
-    if (!image) {
-      return;
-    }
-
-    const hiyoko = vehicle.actionState?.hiyoko;
-    if (!hiyoko?.visible || hiyoko.jumpStartTime == null) {
-      return;
-    }
-
-    const action =
-      getFireFightHiyokoPosition(vehicle, now);
-
-    if (!action) {
-      return;
-    }
-
-    let x = action.x;
-    let y = action.y;
-
-    const {
-      elapsed,
-      jumpProgress,
-      jumpFinished,
-      walkElapsed,
-      walkFinished,
-      waterFinished,
-      returnWalkElapsed,
-      returnWalkProgress,
-      returnWalkFinished,
-    } = action;
-
-    //========画像情報管理部=========
-
-    const frameWidth = 128;
-    const frameHeight = 64;
-
-    const WALK_FRAMES = [0, 1, 0, 2];
-    const WALK_FRAME_INTERVAL = 120;
-
-
-    //=========ひよこ登場向き指示部========
-
-    let hiyokoDirection;
-
-    //初期向き
-    switch (vehicle.direction) {
-      case Direction.RIGHT:
-      case Direction.LEFT:
-        hiyokoDirection = Direction.FRONT;
-        break;
-
-      case Direction.FRONT:
-        hiyokoDirection = Direction.RIGHT;
-        break;
-
-      case Direction.BACK:
-        hiyokoDirection = Direction.LEFT;
-        break;
-    }
-
-    //ジャンプ中
-    if (jumpFinished) {
-      switch (vehicle.direction) {
-        case Direction.RIGHT:
-          hiyokoDirection = Direction.LEFT;
-          break;
-
-        case Direction.LEFT:
-          hiyokoDirection = Direction.RIGHT;
-          break;
-
-        case Direction.FRONT:
-          hiyokoDirection = Direction.BACK;
-          break;
-
-        case Direction.BACK:
-          hiyokoDirection = Direction.FRONT;
-          break;
-      }
-    }
-
-    //戻り中
-    if (waterFinished) {
-      switch (vehicle.direction) {
-        case Direction.RIGHT:
-          hiyokoDirection = Direction.RIGHT;
-          break;
-
-        case Direction.LEFT:
-          hiyokoDirection = Direction.LEFT;
-          break;
-
-        case Direction.FRONT:
-          hiyokoDirection = Direction.FRONT;
-          break;
-
-        case Direction.BACK:
-          hiyokoDirection = Direction.BACK;
-          break;
-      }
-    }
-
-    //帰りのジャンプ中
-    if (returnWalkFinished) {
-      switch (vehicle.direction) {
-        case Direction.RIGHT:
-        case Direction.LEFT:
-          hiyokoDirection = Direction.BACK;
-          break;
-
-        case Direction.FRONT:
-          hiyokoDirection = Direction.LEFT;
-          break;
-
-        case Direction.BACK:
-          hiyokoDirection = Direction.RIGHT;
-          break;
-      }
-    }
-
-    //========使う画像決定部========
-
-    let frame = 0;
-
-    //歩行アニメ
-    let animationElapsed = walkElapsed;
-
-    if (waterFinished) {
-      animationElapsed = returnWalkElapsed;
-    }
-
-    if ((jumpFinished && !walkFinished) ||
-      (waterFinished && returnWalkProgress < 1)) {
-
-      const frameIndex =
-        Math.floor(
-          animationElapsed / WALK_FRAME_INTERVAL
-        ) % WALK_FRAMES.length;
-
-      frame = WALK_FRAMES[frameIndex];
-    }
-
-    let sx = frame * frameWidth;
-    let sy = hiyokoDirection * frameHeight;
-
-
-    //========ひよこにホースを持たせる部========
-    //ホースのところに到着！
-    if (walkFinished && !waterFinished) { //歩き終わった？放水はまだ？
-      sx = 0;
-
-      switch (vehicle.direction) {
-        case Direction.LEFT:
-        case Direction.FRONT:
-          sy = 4 * frameHeight;
-          break;
-
-        case Direction.RIGHT:
-        case Direction.BACK:
-          sy = 5 * frameHeight;
-          break;
-      }
-    }
-
-
-    //========ひよこをつぶす部========
-
-    let scaleY = 1;
-
-    if (jumpProgress < 0.15) {
-
-      const t = jumpProgress / 0.15;
-      scaleY = 1 + (0.5 - 1) * t;
-
-    } else if (jumpProgress < 0.35) {
-
-      const t = (jumpProgress - 0.15) / (0.35 - 0.15);
-      scaleY = 0.5 + (1.18 - 0.5) * t;
-
-    } else if (jumpProgress < 0.5) {
-
-      const t = (jumpProgress - 0.35) / (0.5 - 0.35);
-      scaleY = 1.18 + (1 - 1.18) * t;
-
-    }
-
-    //着地後の潰れ
-    if (elapsed >= FireFightHiyokoAction.JUMP_DURATION) {
-      const landingElapsed =
-        elapsed - FireFightHiyokoAction.JUMP_DURATION;
-
-      const landingProgress =
-        Math.min(
-          landingElapsed / FireFightHiyokoAction.LANDING_DURATION,
-          1
-        );
-
-      if (landingProgress < 0.35) {
-
-        const t = landingProgress / 0.35;
-        scaleY = 1 + (0.5 - 1) * t;
-
-      } else {
-
-        const t = (landingProgress - 0.35) / (1 - 0.35);
-        scaleY = 0.5 + (1 - 0.5) * t;
-
-      }
-    }
-
-
-    //========描画部========
-
-    ctx.save();
-
-    ctx.translate(    // まず「ひよこの足元」の位置へ移動
-      x,
-      y + frameHeight / 2
-    );
-
-    ctx.scale(1, scaleY);    // 足元を基準に縦方向だけ伸び縮み
-
-    ctx.drawImage(
-      image,
-      sx,
-      sy,
-      frameWidth,
-      frameHeight,
-
-      -frameWidth / 2,
-      -frameHeight,
-
-      frameWidth,
-      frameHeight
-    );
-
-    ctx.restore();
-  }
-
-  //消防ひよこ影つけ係
-  function drawFireFightHiyokoShadow(ctx, vehicle, now) {
-
-    const action =
-      getFireFightHiyokoPosition(vehicle, now);
-
-    if (!action) {
-      return;
-    }
-
-    const {
-      shadowX,
-      shadowY,
-      jumpProgress,
-      returnWalkFinished,
-      returnJumpProgress,
-    } = action;
-
-
-
-    let shadowScale = 1;
-
-    if (jumpProgress < 1) {
-      shadowScale =
-        1 - Math.sin(jumpProgress * Math.PI) * 0.4;
-    }
-
-    if (
-      returnWalkFinished &&
-      returnJumpProgress < 1
-    ) {
-      shadowScale =
-        1 - Math.sin(returnJumpProgress * Math.PI) * 0.4;
-    }
-
-
-    ctx.save();
-
-    ctx.globalAlpha = 0.2;
-
-    ctx.beginPath();
-
-    ctx.ellipse(
-      shadowX,
-      shadowY + 28,
-      24 * shadowScale,
-      8 * shadowScale,
-      0,
-      0,
-      Math.PI * 2
-    );
-
-
-    ctx.fillStyle = "black";
-    ctx.fill();
-
-    ctx.restore();
-  }
-
-  function getFireFightHiyokoPosition(vehicle, now) {
-
-    const hiyoko = vehicle.actionState?.hiyoko;
-    if (!hiyoko?.visible || hiyoko.jumpStartTime == null) {
-      return;
-    }
-
-
-    //========時間計算部========
-    const elapsed = now - hiyoko.jumpStartTime;
-
-    //ジャンプ終わったか計算
-    const jumpProgress = Math.min(
-      elapsed / FireFightHiyokoAction.JUMP_DURATION,
-      1
-    );
-    const jumpFinished =
-      elapsed >=
-      FireFightHiyokoAction.JUMP_DURATION +
-      FireFightHiyokoAction.LANDING_DURATION;
-
-
-    //歩き終わったか計算
-    const walkElapsed =
-      elapsed -
-      FireFightHiyokoAction.JUMP_DURATION -
-      FireFightHiyokoAction.LANDING_DURATION;
-
-    const walkProgress = Math.min(
-      Math.max(
-        walkElapsed / FireFightHiyokoAction.WALK_DURATION,
-        0
-      ),
-      1
-    );
-
-    const walkFinished = walkProgress >= 1;  //歩き終わった？
-
-
-    //水撒きおわったか計算
-    const waterDuration =
-      FireFightWaterAction.introFrames.length *
-      FireFightWaterAction.FRAME_INTERVAL +
-      FireFightWaterAction.LOOP_DURATION +
-      FireFightWaterAction.outroFrames.length *
-      FireFightWaterAction.FRAME_INTERVAL;
-
-    const waterFinishedTime =
-      FireFightHiyokoAction.JUMP_DURATION +
-      FireFightHiyokoAction.LANDING_DURATION +
-      FireFightHiyokoAction.WALK_DURATION +
-      waterDuration;
-
-    const waterFinished =
-      elapsed >= waterFinishedTime;
-
-
-    //ひよこ帰る時間
-    const returnWalkElapsed =
-      elapsed - waterFinishedTime;
-
-    const returnWalkProgress = Math.min(
-      Math.max(
-        returnWalkElapsed /
-        FireFightHiyokoAction.RETURN_WALK_DURATION,
-        0
-      ),
-      1
-    );
-
-    const returnWalkFinished =
-      returnWalkProgress >= 1;
-
-
-    //帰還ジャンプ時間
-    const returnJumpElapsed =
-      returnWalkElapsed -
-      FireFightHiyokoAction.RETURN_WALK_DURATION;
-
-    const returnJumpProgress = Math.min(
-      Math.max(
-        returnJumpElapsed / FireFightHiyokoAction.JUMP_DURATION,
-        0
-      ),
-      1
-    );
-
-
-    //========ジャンプ座標管理部========
-    //ジャンプ開始地点
-    let startX = vehicle.position.x;
-    let startY = vehicle.position.y;
-
-    //着地点
-    let landingX = vehicle.position.x;
-    let landingY = vehicle.position.y;
-
-    switch (vehicle.direction) {
-      case Direction.RIGHT:
-        landingX += 80;
-        landingY += 40;
-
-        startX += 80;
-        startY += 20;
-        break;
-
-      case Direction.LEFT:
-        landingX -= 80;
-        landingY += 40;
-
-        startX -= 80;
-        startY += 20;
-        break;
-
-      case Direction.FRONT:
-        landingX += 112;
-        landingY += 40;
-
-        startX += 80;
-        startY += 10;
-        break;
-
-      case Direction.BACK:
-        landingX -= 110;
-        landingY += 0;
-
-        startX -= 80;
-        startY -= 30;
-        break;
-    }
-
-
-    //=========現在位置=========
-    //開始位置 → 着地点
-    let x =
-      startX +
-      (landingX - startX) *
-      jumpProgress;
-
-    let y =
-      startY +
-      (landingY - startY) *
-      jumpProgress;
-
-    //ぴょん！の高さ
-    if (jumpProgress < 1) {
-      y -= Math.sin(jumpProgress * Math.PI) * FireFightHiyokoAction.JUMP_HEIGHT;
-    }
-
-
-    //=========着地後にひよこを歩かせる部========
-
-    //着地した？
-    if (jumpFinished) {
-      switch (vehicle.direction) {
-        case Direction.RIGHT:
-          x -=
-            FireFightHiyokoAction.WALK_DISTANCE_HORIZONTAL *
-            walkProgress;
-          break;
-
-        case Direction.LEFT:
-          x +=
-            FireFightHiyokoAction.WALK_DISTANCE_HORIZONTAL *
-            walkProgress;
-          break;
-
-        case Direction.FRONT:
-          y -=
-            FireFightHiyokoAction.WALK_DISTANCE_VERTICAL *
-            walkProgress;
-          break;
-
-        case Direction.BACK:
-          y +=
-            FireFightHiyokoAction.WALK_DISTANCE_VERTICAL *
-            walkProgress;
-          break;
-      }
-    }
-
-
-    //========放水後、消防車へ帰らせる部========
-
-    if (waterFinished) {
-      switch (vehicle.direction) {
-        case Direction.RIGHT:
-          x +=
-            FireFightHiyokoAction.WALK_DISTANCE_HORIZONTAL *
-            returnWalkProgress;
-          break;
-
-        case Direction.LEFT:
-          x -=
-            FireFightHiyokoAction.WALK_DISTANCE_HORIZONTAL *
-            returnWalkProgress;
-          break;
-
-        case Direction.FRONT:
-          y +=
-            FireFightHiyokoAction.WALK_DISTANCE_VERTICAL *
-            returnWalkProgress;
-          break;
-
-        case Direction.BACK:
-          y -=
-            FireFightHiyokoAction.WALK_DISTANCE_VERTICAL *
-            returnWalkProgress;
-          break;
-      }
-    }
-
-
-    //========最後に消防車へジャンプして戻る部========
-
-    if (returnWalkFinished) {
-
-      //着地点 → 最初に飛び出してきた位置へ
-      x =
-        landingX +
-        (startX - landingX) *
-        returnJumpProgress;
-
-      y =
-        landingY +
-        (startY - landingY) *
-        returnJumpProgress;
-
-      //ジャンプ中の向き
-      switch (vehicle.direction) {
-        case Direction.RIGHT:
-        case Direction.LEFT:
-          break;
-
-        case Direction.FRONT:
-          break;
-
-        case Direction.BACK:
-          break;
-      }
-
-      //ぴょん！
-      if (returnJumpProgress < 1) {
-        y -=
-          Math.sin(returnJumpProgress * Math.PI) *
-          FireFightHiyokoAction.JUMP_HEIGHT;
-      }
-    }
-
-
-    //========影つけ用座標管理部========
-
-    let shadowX = x;
-    let shadowY = y;
-
-    //登場ジャンプ中
-    if (jumpProgress < 1) {
-      shadowY = landingY;
-    }
-
-    //帰還ジャンプ中
-    if (
-      returnWalkFinished &&
-      returnJumpProgress < 1
-    ) {
-      shadowY = landingY;
-    }
-
-
-    return {
-      x,
-      y,
-      shadowX,
-      shadowY,
-
-      elapsed,
-      jumpProgress,
-      jumpFinished,
-      walkElapsed,
-      walkProgress,
-      walkFinished,
-      waterFinished,
-      returnWalkElapsed,
-      returnWalkProgress,
-      returnWalkFinished,
-      returnJumpProgress,
-      returnWalkFinished,
-    };
-  }
-
-
-  //放水描画係
-  function drawFireFightWater(ctx, vehicle, now) {
-    const image = imagesRef.current.fireFightAction02;
-
-    if (!image) {
-      return;
-    }
-
-    const hiyoko = vehicle.actionState?.hiyoko;
-
-    if (!hiyoko?.visible) { //ひよこ見えてる？
-      return;
-    }
-
-    if (!vehicle.actionState?.hoseRemoved) {  //ホースとれてる？
-      return;
-    }
-
-    const sprayStartTime =
-      hiyoko.jumpStartTime +
-      FireFightHiyokoAction.JUMP_DURATION +
-      FireFightHiyokoAction.LANDING_DURATION +
-      FireFightHiyokoAction.WALK_DURATION;
-
-    const sprayElapsed = now - sprayStartTime;
-
-    if (sprayElapsed < 0) {   //放水始まった？
-      return;
-    }
-
-    //アニメーション用フレームどこ
-    const {
-      FRAME_INTERVAL,
-      LOOP_DURATION,
-      introFrames,
-      loopFrames,
-      outroFrames,
-    } = FireFightWaterAction;
-
-    const introDuration =
-      introFrames.length * FRAME_INTERVAL;
-
-    const outroDuration =
-      outroFrames.length * FRAME_INTERVAL;
-
-    let frame;
-
-    //水撒き始め
-    if (sprayElapsed < introDuration) {
-      const index =
-        Math.floor(sprayElapsed / FRAME_INTERVAL);
-
-      frame = introFrames[index];
-    }
-
-    //水撒いてる中
-    else if (
-      sprayElapsed <
-      introDuration + LOOP_DURATION
-    ) {
-      const loopElapsed = sprayElapsed - introDuration;
-
-      const index =
-        Math.floor(loopElapsed / FRAME_INTERVAL) %
-        loopFrames.length;
-
-      frame = loopFrames[index];
-    }
-
-    //水撒きおわり
-    else if (
-      sprayElapsed <
-      introDuration +
-      LOOP_DURATION +
-      outroDuration
-    ) {
-      const outroElapsed =
-        sprayElapsed -
-        introDuration -
-        LOOP_DURATION;
-
-      const index =
-        Math.floor(outroElapsed / FRAME_INTERVAL);
-
-      frame = outroFrames[index];
-    }
-
-    //放水終了
-    else {
-      return;
-    }
-
-
-    const frameWidth = 256;
-    const frameHeight = 64;
-
-    let sx;
-
-    const position = getFireFightHiyokoPosition(vehicle, now);
-    if (!position) {
-      return;
-    }
-
-    const { x, y } = position;
-
-    let waterX = x;
-    const sy = frame * frameHeight;
-
-    switch (vehicle.direction) {
-      case Direction.LEFT:
-      case Direction.FRONT:
-        sx = 0;
-        waterX += 160;
-        break;
-
-      case Direction.RIGHT:
-      case Direction.BACK:
-        sx = frameWidth;
-        waterX -= 160;
-        break;
-    }
-
-
-
-    ctx.drawImage(
-      image,
-
-      sx,
-      sy,
-      frameWidth,
-      frameHeight,
-
-      waterX - frameWidth / 2,
-      y - frameHeight / 2,
-
-      frameWidth,
-      frameHeight
-    );
-  }
 
   //のりもの描画係
   function drawVehicle(ctx, vehicle, now) {
@@ -1857,69 +471,7 @@ function GameView() {
     );
   }
 
-  //踏切描画係
-  function drawCrossing(ctx) {
-    const image = imagesRef.current.crossing01;
-    const crossing = railwayRef.current.crossing;
 
-    if (!image) {
-      return;
-    }
-
-    const sourceX =
-      crossing.frame * Railway.CROSSING_FRAME_WIDTH;
-
-    const sourceY = 0;
-
-    drawShadow(
-      ctx,
-      Railway.CROSSING_X,
-      Railway.CROSSING_Y + 90,
-      50,
-      10
-    );
-
-    ctx.drawImage(
-      image,
-
-      sourceX,
-      sourceY,
-      Railway.CROSSING_FRAME_WIDTH,
-      Railway.CROSSING_FRAME_HEIGHT,
-
-      Railway.CROSSING_X - Railway.CROSSING_WIDTH / 2,
-      Railway.CROSSING_Y - Railway.CROSSING_HEIGHT / 2,
-      Railway.CROSSING_WIDTH,
-      Railway.CROSSING_HEIGHT
-    );
-  }
-
-  //電車描画係
-  function drawTrain(ctx) {
-    const train = railwayRef.current.train;
-    const image = imagesRef.current.train01;
-
-    if (!train.isRunning || !image) {
-      return;
-    }
-
-    drawRectShadow(
-      ctx,
-      train.x,
-      train.y + Railway.shadow.offsetY,
-      Railway.shadow.width,
-      Railway.shadow.height,
-      10
-    );
-
-    ctx.drawImage(
-      image,
-      train.x - Railway.TRAIN_WIDTH / 2,
-      train.y - Railway.TRAIN_HEIGHT / 2,
-      Railway.TRAIN_WIDTH,
-      Railway.TRAIN_HEIGHT
-    );
-  }
 
   //タップエフェクト描画係
   function drawTapEffects(ctx, now) {
@@ -1958,74 +510,6 @@ function GameView() {
     }
   }
 
-  //電車の乗客描画係
-  function drawTrainPassengers(ctx, now) {
-    const train = railwayRef.current.train;
-    if (!train.isRunning) {
-      return;
-    }
-
-    const trainLeft =
-      train.x - Railway.TRAIN_WIDTH / 2;
-
-    const trainTop =
-      train.y - Railway.TRAIN_HEIGHT / 2;
-
-    for (
-      const passenger of trainPassengersRef.current
-    ) {
-      //種類
-      const variant =
-        TrainPassenger.variants[passenger.variant];
-      if (!variant) {
-        continue;
-      }
-
-      //画像名
-      const image =
-        imagesRef.current[variant.imageKey];
-      if (!image) {
-        continue;
-      }
-
-      const frameWidth = variant.frameWidth;
-      const frameHeight = variant.frameHeight;
-
-      const frame =
-        getTrainPassengerFrame(passenger, now);
-
-      const sourceX =
-        frame * frameWidth;
-      const sourceY = 0;
-
-      const carCenterX =
-        trainLeft +
-        passenger.carIndex * TrainPassenger.CAR_WIDTH +
-        TrainPassenger.CAR_WIDTH / 2;
-
-      const passengerBottomY =
-        trainTop +
-        TrainPassenger.BOTTOM_Y_FROM_TRAIN_TOP;
-
-      const passengerX = carCenterX - frameWidth / 2;
-
-      const passengerY = passengerBottomY - frameHeight;
-
-      ctx.drawImage(
-        image,
-
-        sourceX,
-        sourceY,
-        frameWidth,
-        frameHeight,
-
-        passengerX,
-        passengerY,
-        frameWidth,
-        frameHeight
-      );
-    }
-  }
 
   //メニュー描画係
   function drawVehicleMenu(ctx, now) {
@@ -2284,7 +768,12 @@ function GameView() {
     drawMapBubble(ctx);
 
     //NPC描画係
-    drawNPCs(ctx, now);
+    drawNPCs(
+      ctx,
+      npcsRef.current,
+      now,
+      (imageKey) => imagesRef.current[imageKey]
+    );
 
     //動かすのりもの描画係
     const vehicle = vehiclesRef.current[0];
@@ -2303,16 +792,40 @@ function GameView() {
 
     if (vehicle.type === "fireEngine") {
       drawFireFightHiyokoShadow(ctx, vehicle, now);
-      drawFireFightHiyoko(ctx, vehicle, now);
-      drawFireFightWater(ctx, vehicle, now);
+      drawFireFightHiyoko(
+        ctx,
+        vehicle,
+        now,
+        imagesRef.current.fireFightAction01
+      );
+      drawFireFightWater(
+        ctx,
+        vehicle,
+        now,
+        imagesRef.current.fireFightAction02
+      );
     }
 
     //電車描画係
-    drawTrain(ctx);
+    drawTrain(
+      ctx,
+      imagesRef.current.train01,
+      railwayRef.current.train
+    );
     //電車の乗客描画係
-    drawTrainPassengers(ctx, now);
+    drawTrainPassengers(
+      ctx,
+      now,
+      railwayRef.current.train,
+      trainPassengersRef.current,
+      (imageKey) => imagesRef.current[imageKey]
+    );
     //踏切描画係
-    drawCrossing(ctx);
+    drawCrossing(
+      ctx,
+      imagesRef.current.crossing01,
+      railwayRef.current.crossing
+    );
     //しゃぼんだま描画係
     drawBubbles(ctx, now);
     //タップエフェクト描画係
@@ -2383,15 +896,20 @@ function GameView() {
     //走っている電車を触ったかな？
     const train = railwayRef.current.train;
     if (train.isRunning) {
-      const trainRect = getTrainRect();
+      const trainRect = getTrainRect(railwayRef.current.train);
       if (isPointInsideRect(x, y, trainRect)) {
 
-        const carIndex = getTappedTrainCarIndex(x); //車両チェック
+        const carIndex = getTappedTrainCarIndex(
+          x,
+          railwayRef.current.train
+        ); //車両チェック
         //乗客いるかどうかチェック
-        const {
-          isNewPassenger,
-          passenger,
-        } = createTrainPassenger(carIndex, now);
+        const { isNewPassenger } =
+          createTrainPassenger(
+            carIndex,
+            now,
+            trainPassengersRef.current
+          );
 
         if (isNewPassenger) {
           soundManagerRef.current.play("trainHorn01");
@@ -2400,7 +918,6 @@ function GameView() {
         }
 
         createTapSparkles(x, y, now);  //きらきら～
-        createTrainPassenger(carIndex, now);  //乗客表示
         return;
 
       }
@@ -2409,7 +926,14 @@ function GameView() {
     const crossingRect = getCrossingRect();
 
     if (isPointInsideRect(x, y, crossingRect)) {
-      startTrain(performance.now());
+      //電車出発準備！
+      startTrain(
+        now,
+        railwayRef.current.train,
+        railwayRef.current.crossing,
+        trainPassengersRef.current,
+        soundManagerRef.current
+      );
       return;
     }
 
@@ -2815,74 +1339,6 @@ function GameView() {
     };
   }
 
-  //踏切おさわり判定
-  function getCrossingRect() {
-    return {
-      x: Railway.CROSSING_X - Railway.CROSSING_WIDTH / 2,
-      y: Railway.CROSSING_Y - Railway.CROSSING_HEIGHT / 2,
-      width: Railway.CROSSING_WIDTH,
-      height: Railway.CROSSING_HEIGHT,
-    };
-  }
-
-  //電車おさわり判定
-  function getTrainRect() {
-    const train = railwayRef.current.train;
-
-    return {
-      x: train.x - Railway.TRAIN_WIDTH / 2,
-      y: train.y - Railway.TRAIN_HEIGHT / 2,
-      width: Railway.TRAIN_WIDTH,
-      height: Railway.TRAIN_HEIGHT,
-    };
-  }
-
-  //何両目か判定
-  function getTappedTrainCarIndex(tapX) {
-    const train = railwayRef.current.train;
-
-    const trainLeft =
-      train.x - Railway.TRAIN_WIDTH / 2;
-
-    const localX =
-      tapX - trainLeft;
-
-    const carIndex =
-      Math.floor(localX / TrainPassenger.CAR_WIDTH);
-
-    return Math.max(
-      0,
-      Math.min(carIndex, 2)
-    );
-  }
-
-  //電車出発準備係
-  function startTrain(now) {
-    const train = railwayRef.current.train;
-    const crossing = railwayRef.current.crossing;
-
-    //今走ってる？？連打禁止！
-    if (train.isRunning || train.isWaiting) {
-      return;
-    }
-    //乗客リセット
-    trainPassengersRef.current = [];
-
-    //左右指示係
-    train.direction = Math.random() < 0.5 ? 1 : -1;
-
-    train.isWaiting = true;
-    train.startTime = now;
-
-    //踏切アニメーション開始
-    crossing.isRinging = true;
-    crossing.frame = 1;
-    crossing.lastFrameTime = now;
-
-    //踏切音
-    soundManagerRef.current.play("crossing");
-  }
-
   //タップ位置にキラキラを作る係
   function createTapSparkles(x, y, now) {
     const sparkleCount =
@@ -2921,97 +1377,6 @@ function GameView() {
     }
   }
 
-  //誰が乗ってるか決める係
-  function getRandomTrainPassengerVariant() {
-    const variants = Object.entries(
-      TrainPassenger.variants
-    );
-
-    const totalWeight = variants.reduce(
-      (sum, [, variant]) => sum + variant.weight,
-      0
-    );
-
-    let random = Math.random() * totalWeight;
-
-    for (const [key, variant] of variants) {
-      random -= variant.weight;
-
-      if (random < 0) {
-        return key;
-      }
-    }
-
-    return variants[0][0];
-  }
-
-  //電車に乗客を出す係
-  function createTrainPassenger(carIndex, now) {
-    const passengers = trainPassengersRef.current;
-
-    //乗客チェック
-    const existingPassenger =
-      passengers.find(
-        (passenger) =>
-          passenger.carIndex === carIndex
-      );
-
-    //同じ車両をもう一度押したら最初から
-    if (existingPassenger) {
-      existingPassenger.startTime = now;
-
-      return {
-        isNewPassenger: false,
-        passenger: existingPassenger,
-      };
-    }
-
-    const newPassenger = {
-      type: "trainPassenger",
-      variant: getRandomTrainPassengerVariant(),
-
-      carIndex,
-      startTime: now,
-    };
-
-    passengers.push(newPassenger);
-
-    return {
-      isNewPassenger: true,
-      passenger: newPassenger,
-    };
-  }
-
-  //乗客アニメフレームNo.決定係
-  function getTrainPassengerFrame(passenger, now) {
-    const variant =
-      TrainPassenger.variants[passenger.variant];
-
-    const elapsed =
-      now - passenger.startTime;
-
-    const step = Math.floor(
-      elapsed / TrainPassenger.FRAME_INTERVAL
-    );
-
-    const introFrames =
-      variant.introFrames;
-
-    if (step < introFrames.length) {
-      return introFrames[step];
-    }
-
-    const loopFrames =
-      variant.loopFrames;
-
-    const loopStep =
-      step - introFrames.length;
-
-    return loopFrames[
-      loopStep % loopFrames.length
-    ];
-  }
-
   //タップエフェクト更新係
   function updateTapEffects(now) {
     tapEffectsRef.current =
@@ -3023,515 +1388,9 @@ function GameView() {
       });
   }
 
-  //ひよこがジャンプ中かチェックする係
-  function isNPCJumping(npc) {
-    return npc.action.type === "jump";
-  }
-
-  //ひよこジャンプ開始係
-  function startNPCJump(npc, now) {
-    npc.action = {
-      type: "jump",
-      startTime: now,
-
-      duration:
-        NPCAction.JUMP_DURATION +
-        NPCAction.LANDING_DURATION,
-    };
-    npc.frame = 0;    //ジャンプ中は立ち姿のコマにする
-  }
-
-  //ジャンプ中にひよこを変形させる係
-  function getNPCJumpTransform(npc, now) {
-    if (!isNPCJumping(npc)) {
-      return {
-        offsetY: 0,
-        scaleY: 1,
-      };
-    }
-
-    const elapsed =
-      now - npc.action.startTime;
-
-    //ジャンプ中
-    if (elapsed < NPCAction.JUMP_DURATION) {
-      const jumpProgress =
-        elapsed / NPCAction.JUMP_DURATION;
-
-      const offsetY =
-        -Math.sin(jumpProgress * Math.PI) *
-        NPCAction.JUMP_HEIGHT;
-
-      let scaleY = 1;
-
-      if (jumpProgress < 0.15) {
-        //跳ぶ前に潰れる
-        const t =
-          jumpProgress / 0.15;
-
-        scaleY =
-          1 + (0.5 - 1) * t;
-
-      } else if (jumpProgress < 0.35) {
-        //潰れた状態から伸びる
-        const t =
-          (jumpProgress - 0.15) /
-          (0.35 - 0.15);
-
-        scaleY =
-          0.5 + (1.18 - 0.5) * t;
-
-      } else if (jumpProgress < 0.5) {
-        //頂点で100％へ戻る
-        const t =
-          (jumpProgress - 0.35) /
-          (0.5 - 0.35);
-
-        scaleY =
-          1.18 + (1 - 1.18) * t;
-      }
-
-      return {
-        offsetY,
-        scaleY,
-      };
-    }
-
-    //着地後
-    const landingElapsed =
-      elapsed - NPCAction.JUMP_DURATION;
-
-    const landingProgress =
-      Math.min(
-        landingElapsed /
-        NPCAction.LANDING_DURATION,
-        1
-      );
-
-    let scaleY;
-
-    if (landingProgress < 0.35) {
-      //地面に着いてから潰れる
-      const t =
-        landingProgress / 0.35;
-
-      scaleY =
-        1 + (0.5 - 1) * t;
-    } else {
-      //潰れたところから元へ戻る
-      const t =
-        (landingProgress - 0.35) /
-        (1 - 0.35);
-
-      scaleY =
-        0.5 + (1 - 0.5) * t;
-    }
-
-    return {
-      offsetY: 0,
-      scaleY,
-    };
-  }
-
-  //バスのドア位置を教える係
-  function getBusDoorPosition(vehicle) {
-    const offset =
-      BusPassenger.doorOffsets[vehicle.direction];
-
-    return {
-      x: vehicle.position.x + offset.x,
-      y: vehicle.position.y + offset.y,
-    };
-  }
-
-  //バスの中のひよこ位置を教える係
-  function getBusRidingPosition(vehicle) {
-    const offset =
-      BusPassenger.ridingOffsets[vehicle.direction];
-
-    return {
-      x: vehicle.position.x + offset.x,
-      y: vehicle.position.y + offset.y,
-    };
-  }
-
-  //バスの向きを教える係
-  function getNPCDirectionFromVehicle(vehicleDirection) {
-    switch (vehicleDirection) {
-      case Direction.RIGHT:
-        return NPCDirection.RIGHT;
-
-      case Direction.LEFT:
-        return NPCDirection.LEFT;
-
-      case Direction.FRONT:
-        return NPCDirection.FRONT;
-
-      case Direction.BACK:
-        return NPCDirection.BACK;
-
-      default:
-        return NPCDirection.FRONT;
-    }
-  }
-
-  //乗車回数を決める係
-  function getBusRideTargetCount() {
-    const random = Math.random();
-
-    if (random < 0.2) {
-      return 1;
-    }
-    if (random < 0.9) {
-      return 2;
-    }
-    return 3;
-  }
-
-  //ひよこをバスの乗降口に案内する係
-  function tryStartNPCBoarding(npc, now) {
-    const vehicle =
-      vehiclesRef.current[0];
-    if (!vehicle) {
-      return;
-    }
-    //これはバス？
-    if (vehicle.type !== "bus") {
-      return;
-    }
-    //バス止まってる？
-    if (vehicle.state !== State.STOP) {
-      return;
-    }
-    //今お散歩中？
-    if (npc.behavior.type !== NPCBehaviorType.WANDER) {
-      return;
-    }
-    //さっき乗った？
-    if (now < npc.behavior.canBoardAfter) {
-      return;
-    }
-
-    //バスとの距離チェック
-    const dx = vehicle.position.x - npc.position.x;
-    const dy = vehicle.position.y - npc.position.y;
-    const distance = Math.hypot(dx, dy);
-    if (distance > BusPassenger.BOARD_DISTANCE) {
-      return;  //遠ければ離脱
-    }
-
-    const doorPosition = getBusDoorPosition(vehicle);
-
-    npc.target.x = doorPosition.x;
-    npc.target.y = doorPosition.y;
-
-    npc.behavior.type = NPCBehaviorType.BOARD_BUS;
-    npc.behavior.vehicleId = vehicle.id;
-
-    npc.state = NPCState.WALK;
-
-    npc.animationTimer = 0;
-    npc.animationFrameIndex = 0;
-
-    const master = npcMaster[npc.type];
-
-    npc.frame = master.walkFrames[0];
-  }
-
-  //バスまでひよこを歩かせる係
-  function updateNPCBoarding(npc, vehicle, now) {
-    //バスが発進してしまったら乗車を中止
-    if (
-      vehicle.type !== "bus" ||
-      vehicle.state !== State.STOP
-    ) {
-      npc.behavior.type = NPCBehaviorType.WANDER;
-
-      npc.behavior.vehicleId = null;
-
-      npc.state = NPCState.IDLE;
-      npc.frame = 0;
-
-      npc.waitUntil = now + getRandomNumber(300, 700);
-
-      return false;
-    }
-
-    //停止中にバスの向きなどが変わっても、常に最新のドア位置へ向かう
-    const doorPosition = getBusDoorPosition(vehicle);
-
-    npc.target.x = doorPosition.x;
-    npc.target.y = doorPosition.y;
-
-    const distanceToDoor =
-      Math.hypot(
-        doorPosition.x - npc.position.x,
-        doorPosition.y - npc.position.y
-      );
-
-    //まだドアへ着いていない
-    if (
-      distanceToDoor >
-      BusPassenger.BOARD_ARRIVAL_DISTANCE
-    ) {
-      return false;
-    }
-
-    //乗車完了！
-    npc.behavior.type =
-      NPCBehaviorType.RIDE_BUS;
-
-    npc.behavior.isWaitingForArrival = false;
-    npc.behavior.rideCount = 0;
-    npc.behavior.rideTargetCount = getBusRideTargetCount();
-
-    npc.state = NPCState.IDLE;
-    npc.frame = 0;
-
-    const ridingPosition = getBusRidingPosition(vehicle);
-
-    npc.position.x = ridingPosition.x;
-    npc.position.y = ridingPosition.y;
-
-    npc.target.x = ridingPosition.x;
-    npc.target.y = ridingPosition.y;
-
-    soundManagerRef.current.play("hiyokoNoru");  //ぴよ♪
-
-    return true;
-  }
-
-  //バスとひよこ一緒係
-  function updateNPCRidingBus(npc, vehicle, now) {
-    //バス以外へ変更したら乗車終わり
-    if (
-      !vehicle ||
-      vehicle.type !== "bus"
-    ) {
-      npc.behavior.type =
-        NPCBehaviorType.WANDER;
-
-      npc.behavior.vehicleId = null;
-      npc.behavior.isWaitingForArrival = false;
-
-      npc.state = NPCState.IDLE;
-      npc.frame = 0;
-
-      return;
-    }
-
-    const ridingPosition = getBusRidingPosition(vehicle);
-
-    npc.position.x = ridingPosition.x;
-    npc.position.y = ridingPosition.y;
-
-    npc.target.x = ridingPosition.x;
-    npc.target.y = ridingPosition.y;
-
-    npc.direction = getNPCDirectionFromVehicle(vehicle.direction);
-
-    npc.state = NPCState.IDLE;
-    npc.frame = 0;
-
-    //一度でもバスが動いたことを記録
-    if (vehicle.state === State.MOVE) {
-      npc.behavior.isWaitingForArrival = true;
-    }
-
-    //一度動いたバスが停止した
-    if (
-      vehicle.state === State.STOP &&
-      npc.behavior.isWaitingForArrival
-    ) {
-      npc.behavior.isWaitingForArrival = false;
-      npc.behavior.rideCount++;
-
-      //降りるよ～
-      if (
-        npc.behavior.rideCount >=
-        npc.behavior.rideTargetCount
-      ) {
-        npc.behavior.type = NPCBehaviorType.EXIT_BUS;
-        npc.behavior.exitAt = now + BusPassenger.EXIT_DELAY;
-      }
-    }
-  }
-
-  //バスからひよこを降ろす係
-  function updateNPCExitingBus(npc, vehicle, now) {
-    //待ち時間中はまだバスの中
-    if (now < npc.behavior.exitAt) {
-      const ridingPosition = getBusRidingPosition(vehicle);
-
-      npc.position.x = ridingPosition.x;
-      npc.position.y = ridingPosition.y;
-
-      npc.target.x = ridingPosition.x;
-      npc.target.y = ridingPosition.y;
-
-      npc.direction = getNPCDirectionFromVehicle(vehicle.direction);
-
-      npc.state = NPCState.IDLE;
-      npc.frame = 0;
-
-      return;
-    }
-
-    const doorPosition = getBusDoorPosition(vehicle);
-
-    npc.position.x = doorPosition.x;
-    npc.position.y = doorPosition.y;
-
-    npc.target.x = doorPosition.x;
-    npc.target.y = doorPosition.y;
-
-    npc.behavior.type = NPCBehaviorType.WANDER;
-
-    npc.behavior.vehicleId = null;
-    npc.behavior.isWaitingForArrival = false;
-    npc.behavior.rideCount = 0;
-    npc.behavior.rideTargetCount = 0;
-
-    npc.behavior.canBoardAfter = now + BusPassenger.REBOARD_COOLDOWN;
-
-    npc.state = NPCState.IDLE;
-    npc.frame = 0;
-
-    soundManagerRef.current.play("hiyokoNoru");  //ぴよ♪
-    startNPCJump(npc, now);  //ジャンプ
-  }
-
-  //「ひよこ逃げて！」係
-  function tryStartNPCFlee(npc, now) {
-    const vehicle =
-      vehiclesRef.current[0];
-    if (!vehicle) {
-      return;
-    }
-
-    //今回は走っているバスだけ避ける
-    if (vehicle.state !== State.MOVE) {
-      return;
-    }
-
-    //すでに逃走中なら、今の逃げ先を維持
-    if (
-      npc.behavior.type === NPCBehaviorType.FLEE &&
-      now < npc.behavior.until
-    ) {
-      return;
-    }
-
-    //ひよこの方向はどっちだ？
-    let dx = npc.position.x - vehicle.position.x;
-    let dy = npc.position.y - vehicle.position.y;
-    let distance = Math.hypot(dx, dy);
-
-    //まだ遠ければ逃げない
-    if (
-      distance >=
-      NPCFleeConfig.AVOID_DISTANCE
-    ) {
-      return;
-    }
-
-    //完全に同じ位置だった場合の安全策
-    if (distance === 0) {
-      const angle = Math.random() * Math.PI * 2;
-
-      dx = Math.cos(angle);
-      dy = Math.sin(angle);
-      distance = 1;
-    }
-
-    //バスと反対方向を求める
-    const awayX = dx / distance;
-    const awayY = dy / distance;
-
-    npc.target.x = clamp(
-      npc.position.x + awayX * NPCFleeConfig.FLEE_DISTANCE,
-
-      NPCWalkArea.LEFT,
-      NPCWalkArea.RIGHT
-    );
-
-    npc.target.y = clamp(
-      npc.position.y + awayY * NPCFleeConfig.FLEE_DISTANCE,
-
-      NPCWalkArea.TOP,
-      NPCWalkArea.BOTTOM
-    );
-
-    npc.behavior.type = NPCBehaviorType.FLEE;
-    npc.state = NPCState.WALK;
-
-    npc.animationTimer = 0;
-    npc.animationFrameIndex = 0;
-
-    const master =
-      npcMaster[npc.type];
-
-    npc.frame =
-      master.walkFrames[0];
-  }
-
-  //ひよこの次の行き先を決める係
-  function chooseNextNPCTarget(npc) {
-    const master = npcMaster[npc.type];
-
-    npc.target.x = getRandomNumber(
-      NPCWalkArea.LEFT,
-      NPCWalkArea.RIGHT
-    );
-
-    npc.target.y = getRandomNumber(
-      NPCWalkArea.TOP,
-      NPCWalkArea.BOTTOM
-    );
-
-    npc.state = NPCState.WALK;
-    npc.animationTimer = 0;
-    npc.animationFrameIndex = 0;
-    npc.frame = master.walkFrames[0];
-  }
-
-  //ひよこの向きを決める係
-  function updateNPCDirection(npc, dx, dy) {
-    if (Math.abs(dx) > Math.abs(dy)) {
-      npc.direction =
-        dx >= 0
-          ? NPCDirection.RIGHT
-          : NPCDirection.LEFT;
-    } else {
-      npc.direction =
-        dy >= 0
-          ? NPCDirection.FRONT
-          : NPCDirection.BACK;
-    }
-  }
-
-  //ひよこの歩き方指導係
-  function updateNPCAnimation(npc, master, deltaTime) {
-    npc.animationTimer += deltaTime * 1000;
-
-    if (npc.animationTimer < master.animationInterval) {
-      return;
-    }
-
-    npc.animationTimer -= master.animationInterval;
-
-    const currentIndex =
-      master.walkFrames.indexOf(npc.frame);
-
-    npc.animationFrameIndex =
-      (npc.animationFrameIndex + 1) %
-      master.walkFrames.length;
-
-    npc.frame =
-      master.walkFrames[npc.animationFrameIndex];
-  }
-
-  //ひよこたちを動かす係
+  //=================================
+  //ひよこたち監督
+  //=================================
   function updateNPCs(now, deltaTime) {
     for (const npc of npcsRef.current) {
       const master = npcMaster[npc.type];
@@ -3567,7 +1426,18 @@ function GameView() {
       //バスから降りようね
       if (
         npc.behavior.type === NPCBehaviorType.EXIT_BUS) {
-        updateNPCExitingBus(npc, vehicle, now);
+
+        const exitedBus = updateNPCExitingBus(
+          npc,
+          vehicle,
+          now,
+          soundManagerRef.current
+        );
+
+        if (exitedBus) {
+          startNPCJump(npc, now);
+        }
+
         continue;
       }
 
@@ -3580,18 +1450,18 @@ function GameView() {
       //バスに乗ったかな？
       if (npc.behavior.type === NPCBehaviorType.BOARD_BUS) {
         const boarded =
-          updateNPCBoarding(npc, vehicle, now);
+          updateNPCBoarding(npc, vehicle, now, soundManagerRef.current);
         if (boarded) {
           continue;
         }
       }
 
       //走っている車が近くにいるか確認
-      tryStartNPCFlee(npc, now);
+      tryStartNPCFlee(npc, now, vehicle);
 
       //通常状態のときだけバスを探す
       if (npc.behavior.type === NPCBehaviorType.WANDER) {
-        tryStartNPCBoarding(npc, now);
+        tryStartNPCBoarding(npc, vehiclesRef.current[0], now);
       }
 
       if (npc.state === NPCState.IDLE) {
@@ -3742,79 +1612,7 @@ function GameView() {
     };
   }
 
-  //踏切係
-  function updateCrossing(now) {
-    const crossing = railwayRef.current.crossing;
 
-    //鳴っていない？
-    if (!crossing.isRinging) {
-      crossing.frame = 0;
-      return;
-    }
-
-    const elapsed = now - crossing.lastFrameTime;
-
-    if (elapsed < Railway.CROSSING_FRAME_INTERVAL) {
-      return;
-    }
-
-    crossing.lastFrameTime = now;
-
-    //警報①と警報②を交互にする
-    crossing.frame = crossing.frame === 1 ? 2 : 1;
-  }
-
-  //電車移動係
-  function updateTrain(now, deltaTime) {
-    const train = railwayRef.current.train;
-    const crossing = railwayRef.current.crossing;
-
-    //踏切を押して電車を待っているところ
-    if (train.isWaiting) {
-      const elapsed = now - train.startTime;
-
-      if (elapsed >= Railway.START_DELAY) {
-        train.isWaiting = false;
-        train.isRunning = true;
-
-        if (train.direction === 1) {
-          //左側の画面外から右へ
-          train.x = -Railway.TRAIN_WIDTH / 2;
-        } else {
-          //右側の画面外から左へ
-          train.x = 1920 + Railway.TRAIN_WIDTH / 2;
-        }
-
-        soundManagerRef.current.play("train01");
-      }
-
-      return;
-    }
-
-    if (!train.isRunning) {
-      return;
-    }
-
-    train.x += Railway.TRAIN_SPEED * deltaTime * train.direction;
-
-    const passedRightSide =
-      train.direction === 1 &&
-      train.x - Railway.TRAIN_WIDTH / 2 > 1920;
-
-    const passedLeftSide =
-      train.direction === -1 &&
-      train.x + Railway.TRAIN_WIDTH / 2 < 0;
-
-    if (passedRightSide || passedLeftSide) {
-      train.isRunning = false;
-
-      //乗客おしまい
-      trainPassengersRef.current = [];
-      //踏切おしまい
-      crossing.isRinging = false;
-      crossing.frame = 0;
-    }
-  }
 
 
   //ぽよん開始合図係
@@ -3904,130 +1702,6 @@ function GameView() {
     }
   }
 
-  //消防アクション更新係
-  function updateFireFightAction(vehicle, now) {
-    if (vehicle.type !== "fireEngine") {
-      return;
-    }
-
-    const hiyoko = vehicle.actionState?.hiyoko;
-
-    if (!hiyoko?.visible || hiyoko.jumpStartTime == null) {
-      return;
-    }
-
-    const elapsed = now - hiyoko.jumpStartTime;
-
-    const jumpFinished = elapsed >=
-      FireFightHiyokoAction.JUMP_DURATION +
-      FireFightHiyokoAction.LANDING_DURATION;
-
-    const walkFinished =
-      elapsed >=
-      FireFightHiyokoAction.JUMP_DURATION +
-      FireFightHiyokoAction.LANDING_DURATION +
-      FireFightHiyokoAction.WALK_DURATION;
-
-    const waterDuration =
-      FireFightWaterAction.introFrames.length *
-      FireFightWaterAction.FRAME_INTERVAL +
-      FireFightWaterAction.LOOP_DURATION +
-      FireFightWaterAction.outroFrames.length *
-      FireFightWaterAction.FRAME_INTERVAL;
-
-    const waterFinished =
-      elapsed >=
-      FireFightHiyokoAction.JUMP_DURATION +
-      FireFightHiyokoAction.LANDING_DURATION +
-      FireFightHiyokoAction.WALK_DURATION +
-      waterDuration;
-
-    const returnWalkFinished =
-      elapsed >=
-      FireFightHiyokoAction.JUMP_DURATION +
-      FireFightHiyokoAction.LANDING_DURATION +
-      FireFightHiyokoAction.WALK_DURATION +
-      waterDuration +
-      FireFightHiyokoAction.RETURN_WALK_DURATION;
-
-
-    const actionFinished =
-      elapsed >=
-      FireFightHiyokoAction.JUMP_DURATION +
-      FireFightHiyokoAction.LANDING_DURATION +
-      FireFightHiyokoAction.WALK_DURATION +
-      waterDuration +
-      FireFightHiyokoAction.RETURN_WALK_DURATION +
-      FireFightHiyokoAction.JUMP_DURATION;
-
-    if (walkFinished && !waterFinished) {
-      vehicle.actionState.hoseRemoved = true;
-    }
-    if (waterFinished) {
-      vehicle.actionState.hoseRemoved = false;
-    }
-    if (actionFinished) {
-      vehicle.actionState.hiyoko.visible = false;
-      vehicle.actionState.hiyoko.jumpStartTime = null;
-    }
-
-    //音管理
-
-    const WALK_SOUND_INTERVAL = 280;
-
-    const isWalking =
-      (jumpFinished && !walkFinished) ||
-      (waterFinished && !returnWalkFinished);
-
-    if (isWalking) {
-      if (
-        hiyoko.lastWalkSoundTime == null ||
-        now - hiyoko.lastWalkSoundTime >= WALK_SOUND_INTERVAL
-      ) {
-        soundManagerRef.current.play("hiyokoWalk01");
-        hiyoko.lastWalkSoundTime = now;
-      }
-    } else {
-      hiyoko.lastWalkSoundTime = null;
-    }
-
-    if (walkFinished && !hiyoko.soundPlayed.hose) {
-      soundManagerRef.current.play("fireFightAction01");
-      hiyoko.soundPlayed.hose = true;
-    }
-    if (walkFinished && !hiyoko.soundPlayed.spray) {
-      soundManagerRef.current.play("fireFightAction02");
-      hiyoko.soundPlayed.spray = true;
-    }
-    if (returnWalkFinished && !hiyoko.soundPlayed.returnJump) {
-      soundManagerRef.current.play("hiyokoNoru");
-      hiyoko.soundPlayed.returnJump = true;
-    }
-  }
-
-  //パトカーアクション更新係
-
-  function updatePoliceCarAction(vehicle, now) {
-    if (vehicle.type !== "policeCar") {
-      return;
-    }
-
-    const startTime =
-      vehicle.actionState?.startTime;
-
-    if (startTime == null) {
-      return;
-    }
-
-    const actionDuration =
-      PoliceCarAction.frames.length *
-      PoliceCarAction.FRAME_INTERVAL *
-      PoliceCarAction.LOOP_COUNT;
-
-    if (now - startTime >= actionDuration) {
-      vehicle.actionState.startTime = null;
-    }
-  }
 
   //車移動部署
   function updateVehicle(now, deltaTime) {
@@ -4063,7 +1737,7 @@ function GameView() {
       updatePosition(vehicle, master, dx, dy, distance, deltaTime);
       updateColoPuddleCollision(vehicle);
       updateEffect(vehicle, now);
-      updateFireFightAction(vehicle, now);
+      updateFireFightAction(vehicle, now, soundManagerRef.current);
       updatePoliceCarAction(vehicle, now);
 
 
@@ -4185,8 +1859,15 @@ function GameView() {
     updateVehicle(now, deltaTime);
     updateNPCs(now, deltaTime);
     updateVehicleMenu(now);
-    updateCrossing(now);
-    updateTrain(now, deltaTime);
+    updateCrossing(now, railwayRef.current.crossing);
+    updateTrain(
+      now,
+      deltaTime,
+      railwayRef.current.train,
+      railwayRef.current.crossing,
+      soundManagerRef.current,
+      trainPassengersRef.current
+    );
     updateTapEffects(now);
     updateBubbles(now, deltaTime);
 
@@ -4273,7 +1954,7 @@ function GameView() {
         return;
       }
 
-      //FPSチェック
+      //=============FPSチェック===============
       const fpsData = fpsDataRef.current;
       fpsData.frames++;
       if (fpsData.previousFrameTime !== null) {
@@ -4312,6 +1993,8 @@ function GameView() {
         fpsData.droppedFrames = 0;
         fpsData.lastReportTime = now;
       }
+
+      //==============ここまで===================
 
       animationFrameId = requestAnimationFrame(gameLoop);
     }
