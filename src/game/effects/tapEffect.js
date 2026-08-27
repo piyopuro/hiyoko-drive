@@ -1,4 +1,5 @@
 import { getRandomNumber } from "../utils/math";
+import { worldToScreen } from "../utils/draw";
 
 
 //========タップエフェクトの情報========
@@ -81,11 +82,13 @@ export function updateTapEffects(now, tapEffects) {
 //タップエフェクト描画係
 //=================================
 export function drawTapEffects(
-  ctx, 
+  ctx,
   now,
   tapEffects,
-  image
+  image,
+  camera
 ) {
+
   for (const effect of tapEffects) {
     if (effect.type !== "sparkle") {
       continue;
@@ -107,11 +110,17 @@ export function drawTapEffects(
     const size =
       effect.maxSize * scale;
 
+    const screenPosition = worldToScreen(
+      effect.x,
+      effect.y,
+      camera
+    );
+
     ctx.drawImage(
       image,
 
-      effect.x - size / 2,
-      effect.y - size / 2,
+      screenPosition.x - size / 2,
+      screenPosition.y - size / 2,
 
       size,
       size

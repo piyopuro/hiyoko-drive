@@ -1,6 +1,5 @@
-import {
-    getRandomNumber,
-} from "../utils/math";
+import { getRandomNumber } from "../utils/math";
+import { worldToScreen } from "../utils/draw";
 
 //========シャボン玉たちの情報========
 
@@ -52,17 +51,23 @@ export function createMapBubble(bubbleGame) {
 //=====================================
 //ちちゃいシャボン玉を描く係
 //=====================================
-export function drawMapBubble(ctx, bubbleGame, image) {
+export function drawMapBubble(ctx, bubbleGame, image, camera) {
     if (!bubbleGame.mapBubble) {
         return;
     }
 
     const size = BubbleGame.MAP_BUBBLE_SIZE;
 
+    const screenPosition = worldToScreen(
+        bubbleGame.mapBubble.x,
+        bubbleGame.mapBubble.y,
+        camera
+    );
+
     ctx.drawImage(
         image,
-        bubbleGame.mapBubble.x - size / 2,
-        bubbleGame.mapBubble.y - size / 2,
+        screenPosition.x - size / 2,
+        screenPosition.y - size / 2,
         size,
         size
     );
@@ -72,7 +77,7 @@ export function drawMapBubble(ctx, bubbleGame, image) {
 //=====================================
 //しゃぼんだまぷくぷく係
 //=====================================
-export function startBubbleGame(now,bubbleGame) {
+export function startBubbleGame(now, bubbleGame) {
     const bubbles = [];
 
     for (let i = 0; i < BubbleGame.COUNT; i++) {

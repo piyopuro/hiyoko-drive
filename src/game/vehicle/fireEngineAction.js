@@ -1,4 +1,6 @@
 import { Direction } from "../constants/vehicleMaster";
+import { worldToScreen } from "../utils/draw";
+
 
 export const FireFightHiyokoAction = {
   JUMP_DURATION: 500,
@@ -324,7 +326,7 @@ export function getFireFightHiyokoPosition(vehicle, now) {
 //消防ひよこ描画本部
 //==========================
 
-export function drawFireFightHiyoko(ctx, vehicle, now, image) {
+export function drawFireFightHiyoko(ctx, vehicle, now, image, camera) {
 
   if (!image) {
     return;
@@ -342,8 +344,11 @@ export function drawFireFightHiyoko(ctx, vehicle, now, image) {
     return;
   }
 
-  let x = action.x;
-  let y = action.y;
+  const screenPosition = worldToScreen(
+    action.x,
+    action.y,
+    camera
+  );
 
   const {
     elapsed,
@@ -542,8 +547,8 @@ export function drawFireFightHiyoko(ctx, vehicle, now, image) {
   ctx.save();
 
   ctx.translate(    // まず「ひよこの足元」の位置へ移動
-    x,
-    y + frameHeight / 2
+    screenPosition.x,
+    screenPosition.y + frameHeight / 2
   );
 
   ctx.scale(1, scaleY);    // 足元を基準に縦方向だけ伸び縮み
@@ -569,7 +574,7 @@ export function drawFireFightHiyoko(ctx, vehicle, now, image) {
 //消防ひよこ影つけ係
 //=======================
 
-export function drawFireFightHiyokoShadow(ctx, vehicle, now) {
+export function drawFireFightHiyokoShadow(ctx, vehicle, now, camera) {
 
   const action =
     getFireFightHiyokoPosition(vehicle, now);
@@ -577,6 +582,7 @@ export function drawFireFightHiyokoShadow(ctx, vehicle, now) {
   if (!action) {
     return;
   }
+
 
   const {
     shadowX,
@@ -603,6 +609,11 @@ export function drawFireFightHiyokoShadow(ctx, vehicle, now) {
       1 - Math.sin(returnJumpProgress * Math.PI) * 0.4;
   }
 
+  const screenPosition = worldToScreen(
+    shadowX,
+    shadowY,
+    camera
+  );
 
   ctx.save();
 
@@ -611,8 +622,8 @@ export function drawFireFightHiyokoShadow(ctx, vehicle, now) {
   ctx.beginPath();
 
   ctx.ellipse(
-    shadowX,
-    shadowY + 28,
+    screenPosition.x,
+    screenPosition.y + 28,
     24 * shadowScale,
     8 * shadowScale,
     0,
@@ -632,7 +643,7 @@ export function drawFireFightHiyokoShadow(ctx, vehicle, now) {
 //放水描画係
 //============================================
 
-export function drawFireFightWater(ctx, vehicle, now,image) {
+export function drawFireFightWater(ctx, vehicle, now, image, camera) {
 
   if (!image) {
     return;
@@ -752,7 +763,11 @@ export function drawFireFightWater(ctx, vehicle, now,image) {
       break;
   }
 
-
+  const screenPosition = worldToScreen(
+    waterX,
+    y,
+    camera
+  );
 
   ctx.drawImage(
     image,
@@ -762,8 +777,8 @@ export function drawFireFightWater(ctx, vehicle, now,image) {
     frameWidth,
     frameHeight,
 
-    waterX - frameWidth / 2,
-    y - frameHeight / 2,
+    screenPosition.x - frameWidth / 2,
+    screenPosition.y - frameHeight / 2,
 
     frameWidth,
     frameHeight
@@ -775,102 +790,102 @@ export function drawFireFightWater(ctx, vehicle, now,image) {
 //消防アクション監督
 //========================================
 
-export  function updateFireFightAction(vehicle, now,soundManager) {
-    if (vehicle.type !== "fireEngine") {
-      return;
-    }
-
-    const hiyoko = vehicle.actionState?.hiyoko;
-
-    if (!hiyoko?.visible || hiyoko.jumpStartTime == null) {
-      return;
-    }
-
-    const elapsed = now - hiyoko.jumpStartTime;
-
-    const jumpFinished = elapsed >=
-      FireFightHiyokoAction.JUMP_DURATION +
-      FireFightHiyokoAction.LANDING_DURATION;
-
-    const walkFinished =
-      elapsed >=
-      FireFightHiyokoAction.JUMP_DURATION +
-      FireFightHiyokoAction.LANDING_DURATION +
-      FireFightHiyokoAction.WALK_DURATION;
-
-    const waterDuration =
-      FireFightWaterAction.introFrames.length *
-      FireFightWaterAction.FRAME_INTERVAL +
-      FireFightWaterAction.LOOP_DURATION +
-      FireFightWaterAction.outroFrames.length *
-      FireFightWaterAction.FRAME_INTERVAL;
-
-    const waterFinished =
-      elapsed >=
-      FireFightHiyokoAction.JUMP_DURATION +
-      FireFightHiyokoAction.LANDING_DURATION +
-      FireFightHiyokoAction.WALK_DURATION +
-      waterDuration;
-
-    const returnWalkFinished =
-      elapsed >=
-      FireFightHiyokoAction.JUMP_DURATION +
-      FireFightHiyokoAction.LANDING_DURATION +
-      FireFightHiyokoAction.WALK_DURATION +
-      waterDuration +
-      FireFightHiyokoAction.RETURN_WALK_DURATION;
-
-
-    const actionFinished =
-      elapsed >=
-      FireFightHiyokoAction.JUMP_DURATION +
-      FireFightHiyokoAction.LANDING_DURATION +
-      FireFightHiyokoAction.WALK_DURATION +
-      waterDuration +
-      FireFightHiyokoAction.RETURN_WALK_DURATION +
-      FireFightHiyokoAction.JUMP_DURATION;
-
-    if (walkFinished && !waterFinished) {
-      vehicle.actionState.hoseRemoved = true;
-    }
-    if (waterFinished) {
-      vehicle.actionState.hoseRemoved = false;
-    }
-    if (actionFinished) {
-      vehicle.actionState.hiyoko.visible = false;
-      vehicle.actionState.hiyoko.jumpStartTime = null;
-    }
-
-    //音管理
-
-    const WALK_SOUND_INTERVAL = 280;
-
-    const isWalking =
-      (jumpFinished && !walkFinished) ||
-      (waterFinished && !returnWalkFinished);
-
-    if (isWalking) {
-      if (
-        hiyoko.lastWalkSoundTime == null ||
-        now - hiyoko.lastWalkSoundTime >= WALK_SOUND_INTERVAL
-      ) {
-        soundManager.play("hiyokoWalk01");
-        hiyoko.lastWalkSoundTime = now;
-      }
-    } else {
-      hiyoko.lastWalkSoundTime = null;
-    }
-
-    if (walkFinished && !hiyoko.soundPlayed.hose) {
-      soundManager.play("fireFightAction01");
-      hiyoko.soundPlayed.hose = true;
-    }
-    if (walkFinished && !hiyoko.soundPlayed.spray) {
-      soundManager.play("fireFightAction02");
-      hiyoko.soundPlayed.spray = true;
-    }
-    if (returnWalkFinished && !hiyoko.soundPlayed.returnJump) {
-      soundManager.play("hiyokoNoru");
-      hiyoko.soundPlayed.returnJump = true;
-    }
+export function updateFireFightAction(vehicle, now, soundManager) {
+  if (vehicle.type !== "fireEngine") {
+    return;
   }
+
+  const hiyoko = vehicle.actionState?.hiyoko;
+
+  if (!hiyoko?.visible || hiyoko.jumpStartTime == null) {
+    return;
+  }
+
+  const elapsed = now - hiyoko.jumpStartTime;
+
+  const jumpFinished = elapsed >=
+    FireFightHiyokoAction.JUMP_DURATION +
+    FireFightHiyokoAction.LANDING_DURATION;
+
+  const walkFinished =
+    elapsed >=
+    FireFightHiyokoAction.JUMP_DURATION +
+    FireFightHiyokoAction.LANDING_DURATION +
+    FireFightHiyokoAction.WALK_DURATION;
+
+  const waterDuration =
+    FireFightWaterAction.introFrames.length *
+    FireFightWaterAction.FRAME_INTERVAL +
+    FireFightWaterAction.LOOP_DURATION +
+    FireFightWaterAction.outroFrames.length *
+    FireFightWaterAction.FRAME_INTERVAL;
+
+  const waterFinished =
+    elapsed >=
+    FireFightHiyokoAction.JUMP_DURATION +
+    FireFightHiyokoAction.LANDING_DURATION +
+    FireFightHiyokoAction.WALK_DURATION +
+    waterDuration;
+
+  const returnWalkFinished =
+    elapsed >=
+    FireFightHiyokoAction.JUMP_DURATION +
+    FireFightHiyokoAction.LANDING_DURATION +
+    FireFightHiyokoAction.WALK_DURATION +
+    waterDuration +
+    FireFightHiyokoAction.RETURN_WALK_DURATION;
+
+
+  const actionFinished =
+    elapsed >=
+    FireFightHiyokoAction.JUMP_DURATION +
+    FireFightHiyokoAction.LANDING_DURATION +
+    FireFightHiyokoAction.WALK_DURATION +
+    waterDuration +
+    FireFightHiyokoAction.RETURN_WALK_DURATION +
+    FireFightHiyokoAction.JUMP_DURATION;
+
+  if (walkFinished && !waterFinished) {
+    vehicle.actionState.hoseRemoved = true;
+  }
+  if (waterFinished) {
+    vehicle.actionState.hoseRemoved = false;
+  }
+  if (actionFinished) {
+    vehicle.actionState.hiyoko.visible = false;
+    vehicle.actionState.hiyoko.jumpStartTime = null;
+  }
+
+  //音管理
+
+  const WALK_SOUND_INTERVAL = 280;
+
+  const isWalking =
+    (jumpFinished && !walkFinished) ||
+    (waterFinished && !returnWalkFinished);
+
+  if (isWalking) {
+    if (
+      hiyoko.lastWalkSoundTime == null ||
+      now - hiyoko.lastWalkSoundTime >= WALK_SOUND_INTERVAL
+    ) {
+      soundManager.play("hiyokoWalk01");
+      hiyoko.lastWalkSoundTime = now;
+    }
+  } else {
+    hiyoko.lastWalkSoundTime = null;
+  }
+
+  if (walkFinished && !hiyoko.soundPlayed.hose) {
+    soundManager.play("fireFightAction01");
+    hiyoko.soundPlayed.hose = true;
+  }
+  if (walkFinished && !hiyoko.soundPlayed.spray) {
+    soundManager.play("fireFightAction02");
+    hiyoko.soundPlayed.spray = true;
+  }
+  if (returnWalkFinished && !hiyoko.soundPlayed.returnJump) {
+    soundManager.play("hiyokoNoru");
+    hiyoko.soundPlayed.returnJump = true;
+  }
+}

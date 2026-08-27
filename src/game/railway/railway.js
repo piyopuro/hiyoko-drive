@@ -1,12 +1,15 @@
 import {
   Railway,
   TrainPassenger,
+  railwayMap,
 } from "../constants/railwayConfig"
 
 import {
   drawShadow,
   drawRectShadow,
+  worldToScreen,
 } from "../utils/draw";
+
 
 
 //========================判定所==================================
@@ -50,145 +53,50 @@ export function getTappedTrainCarIndex(tapX, train) {
 
 
 
-//======================================
-//踏切描画係
-//======================================
-export function drawCrossing(ctx, image, crossing) {
-
+//=======================================
+// 線路を1本描く係
+//=======================================
+export function drawRailway(
+  ctx,
+  railway,
+  image,
+  camera
+) {
   if (!image) {
     return;
   }
 
-  const sourceX =
-    crossing.frame * Railway.CROSSING_FRAME_WIDTH;
-
-  const sourceY = 0;
-
-  drawShadow(
-    ctx,
-    Railway.CROSSING_X,
-    Railway.CROSSING_Y + 90,
-    50,
-    10
+  const screenPosition = worldToScreen(
+    railway.x,
+    railway.y,
+    camera
   );
 
   ctx.drawImage(
     image,
-
-    sourceX,
-    sourceY,
-    Railway.CROSSING_FRAME_WIDTH,
-    Railway.CROSSING_FRAME_HEIGHT,
-
-    Railway.CROSSING_X - Railway.CROSSING_WIDTH / 2,
-    Railway.CROSSING_Y - Railway.CROSSING_HEIGHT / 2,
-    Railway.CROSSING_WIDTH,
-    Railway.CROSSING_HEIGHT
+    screenPosition.x,
+    screenPosition.y,
+    Railway.RAILWAY_WIDTH,
+    Railway.RAILWAY_HEIGHT
   );
 }
 
 
-//======================================
-//電車描画係
-//======================================
-export function drawTrain(ctx, image, train) {
-
-  if (!train.isRunning || !image) {
-    return;
-  }
-
-  drawRectShadow(
-    ctx,
-    train.x,
-    train.y + Railway.shadow.offsetY,
-    Railway.shadow.width,
-    Railway.shadow.height,
-    10
-  );
-
-  ctx.drawImage(
-    image,
-    train.x - Railway.TRAIN_WIDTH / 2,
-    train.y - Railway.TRAIN_HEIGHT / 2,
-    Railway.TRAIN_WIDTH,
-    Railway.TRAIN_HEIGHT
-  );
-}
-
-
-//======================================
-//電車の乗客描画係
-//======================================
-export function drawTrainPassengers(
+//=======================================
+// マップ上の線路を全部描く係
+//=======================================
+export function drawRailways(
   ctx,
-  now,
-  train,
-  passengers,
-  getImage
+  railways,
+  image,
+  camera
 ) {
-
-  if (!train.isRunning) {
-    return;
-  }
-
-  const trainLeft =
-    train.x - Railway.TRAIN_WIDTH / 2;
-
-  const trainTop =
-    train.y - Railway.TRAIN_HEIGHT / 2;
-
-  for (
-    const passenger of passengers) {
-
-    //種類
-    const variant =
-      TrainPassenger.variants[passenger.variant];
-    if (!variant) {
-      continue;
-    }
-
-    //乗客ごとの画像を取得
-    const image = getImage(variant.imageKey);
-
-    if (!image) {
-      continue;
-    }
-
-    const frameWidth = variant.frameWidth;
-    const frameHeight = variant.frameHeight;
-
-    const frame =
-      getTrainPassengerFrame(passenger, now);
-
-    const sourceX =
-      frame * frameWidth;
-    const sourceY = 0;
-
-    const carCenterX =
-      trainLeft +
-      passenger.carIndex * TrainPassenger.CAR_WIDTH +
-      TrainPassenger.CAR_WIDTH / 2;
-
-    const passengerBottomY =
-      trainTop +
-      TrainPassenger.BOTTOM_Y_FROM_TRAIN_TOP;
-
-    const passengerX = carCenterX - frameWidth / 2;
-
-    const passengerY = passengerBottomY - frameHeight;
-
-    ctx.drawImage(
+  for (const railway of railways) {
+    drawRailway(
+      ctx,
+      railway,
       image,
-
-      sourceX,
-      sourceY,
-      frameWidth,
-      frameHeight,
-
-      passengerX,
-      passengerY,
-      frameWidth,
-      frameHeight
+      camera
     );
   }
 }
@@ -327,6 +235,171 @@ export function createTrainPassenger(carIndex, now, passengers) {
   };
 }
 
+
+//======================================
+//電車の乗客描画係
+//======================================
+export function drawTrainPassengers(
+  ctx,
+  now,
+  train,
+  passengers,
+  getImage,
+  camera
+) {
+
+  if (!train.isRunning) {
+    return;
+  }
+
+  const trainLeft =
+    train.x - Railway.TRAIN_WIDTH / 2;
+
+  const trainTop =
+    train.y - Railway.TRAIN_HEIGHT / 2;
+
+  for (
+    const passenger of passengers) {
+
+    //種類
+    const variant =
+      TrainPassenger.variants[passenger.variant];
+    if (!variant) {
+      continue;
+    }
+
+    //乗客ごとの画像を取得
+    const image = getImage(variant.imageKey);
+
+    if (!image) {
+      continue;
+    }
+
+    const frameWidth = variant.frameWidth;
+    const frameHeight = variant.frameHeight;
+
+    const frame =
+      getTrainPassengerFrame(passenger, now);
+
+    const sourceX =
+      frame * frameWidth;
+    const sourceY = 0;
+
+    const carCenterX =
+      trainLeft +
+      passenger.carIndex * TrainPassenger.CAR_WIDTH +
+      TrainPassenger.CAR_WIDTH / 2;
+
+    const passengerBottomY =
+      trainTop +
+      TrainPassenger.BOTTOM_Y_FROM_TRAIN_TOP;
+
+    const passengerX = carCenterX - frameWidth / 2;
+
+    const passengerY = passengerBottomY - frameHeight;
+
+    const screenPosition = worldToScreen(
+      passengerX,
+      passengerY,
+      camera
+    );
+
+
+    ctx.drawImage(
+      image,
+
+      sourceX,
+      sourceY,
+      frameWidth,
+      frameHeight,
+
+      screenPosition.x,
+      screenPosition.y,
+      frameWidth,
+      frameHeight
+    );
+  }
+}
+
+
+//======================================
+//踏切描画係
+//======================================
+export function drawCrossing(ctx, image, crossing,camera) {
+
+  if (!image) {
+    return;
+  }
+
+  const sourceX =
+    crossing.frame * Railway.CROSSING_FRAME_WIDTH;
+
+  const sourceY = 0;
+
+  const screenPosition = worldToScreen(
+  Railway.CROSSING_X,
+  Railway.CROSSING_Y,
+  camera
+);
+
+  drawShadow(
+    ctx,
+    screenPosition.x,
+    screenPosition.y + 90,
+    50,
+    10
+  );
+
+  ctx.drawImage(
+    image,
+
+    sourceX,
+    sourceY,
+    Railway.CROSSING_FRAME_WIDTH,
+    Railway.CROSSING_FRAME_HEIGHT,
+
+    screenPosition.x - Railway.CROSSING_WIDTH / 2,
+    screenPosition.y - Railway.CROSSING_HEIGHT / 2,
+    Railway.CROSSING_WIDTH,
+    Railway.CROSSING_HEIGHT
+  );
+}
+
+
+//======================================
+//電車描画係
+//======================================
+export function drawTrain(ctx, image, train, camera) {
+
+  if (!train.isRunning || !image) {
+    return;
+  }
+
+  const screenPosition = worldToScreen(
+    train.x,
+    train.y,
+    camera
+  );
+
+  drawRectShadow(
+    ctx,
+    screenPosition.x,
+    screenPosition.y + Railway.shadow.offsetY,
+    Railway.shadow.width,
+    Railway.shadow.height,
+    10
+  );
+
+  ctx.drawImage(
+    image,
+    screenPosition.x - Railway.TRAIN_WIDTH / 2,
+    screenPosition.y - Railway.TRAIN_HEIGHT / 2,
+    Railway.TRAIN_WIDTH,
+    Railway.TRAIN_HEIGHT
+  );
+}
+
+
 //======================================
 //★踏切監督
 //======================================
@@ -354,13 +427,19 @@ export function updateCrossing(now, crossing) {
 //★電車監督
 //======================================
 export function updateTrain(
-  now, 
+  now,
   deltaTime,
   train,
   crossing,
   soundManager,
   trainPassengers
 ) {
+
+  const railwayRightX =
+    railwayMap[0].x +
+    Railway.RAILWAY_WIDTH * railwayMap.length;
+  const railwayLeftX =
+    railwayMap[0].x;
 
   //踏切を押して電車を待っているところ
   if (train.isWaiting) {
@@ -370,12 +449,22 @@ export function updateTrain(
       train.isWaiting = false;
       train.isRunning = true;
 
+      //電車のＹ座標　は　線路情報から。
+      train.y =
+        railwayMap[0].y +
+        train.railwayOffset.y;
+      // -Railway.TRAIN_HEIGHT / 2;
+
       if (train.direction === 1) {
-        //左側の画面外から右へ
-        train.x = -Railway.TRAIN_WIDTH / 2;
+        //左側のマップ外から右へ
+        train.x =
+          railwayLeftX -
+          Railway.TRAIN_WIDTH / 2;
       } else {
-        //右側の画面外から左へ
-        train.x = 1920 + Railway.TRAIN_WIDTH / 2;
+        //右側のマップ外から左へ
+        train.x =
+          railwayRightX +
+          Railway.TRAIN_WIDTH / 2;
       }
 
       soundManager.play("train01");
@@ -390,14 +479,19 @@ export function updateTrain(
 
   train.x += Railway.TRAIN_SPEED * deltaTime * train.direction;
 
+
   const passedRightSide =
     train.direction === 1 &&
-    train.x - Railway.TRAIN_WIDTH / 2 > 1920;
+    train.x >
+    railwayRightX +
+    Railway.TRAIN_WIDTH / 2;
+
 
   const passedLeftSide =
     train.direction === -1 &&
-    train.x + Railway.TRAIN_WIDTH / 2 < 0;
-
+    train.x <
+    railwayLeftX -
+    Railway.TRAIN_WIDTH / 2;
   if (passedRightSide || passedLeftSide) {
     train.isRunning = false;
 

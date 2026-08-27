@@ -1,8 +1,7 @@
-import {
-    getRandomNumber,
-} from "../utils/math";
-
+import { getRandomNumber } from "../utils/math";
+import { worldToScreen } from "../utils/draw";
 import { vehicleMaster } from "../constants/vehicleMaster";
+import { Map } from "../constants/mapConfig";
 
 
 //=========インク池の情報たち========
@@ -82,11 +81,11 @@ export function createRandomColorPuddles() {
         for (let attempt = 0; attempt < 100; attempt++) {
             const x = getRandomNumber(
                 margin + puddleMaster.radius,
-                1920 - margin - puddleMaster.radius
+                Map.WIDTH - margin - puddleMaster.radius
             );
             const y = getRandomNumber(
                 margin + puddleMaster.radius,
-                850 - margin - puddleMaster.radius
+                1250 - margin - puddleMaster.radius
             );
 
             //インク池重なりチェック
@@ -140,13 +139,19 @@ export function createRandomColorPuddles() {
 //========================================
 //インク池描画係
 //========================================
-export function drawColorPuddle(ctx, puddle, image) {
+export function drawColorPuddle(ctx, puddle, image, camera) {
     const size = puddle.radius * 2;
+
+    const screenPosition = worldToScreen(
+        puddle.x,
+        puddle.y,
+        camera
+    );
 
     ctx.drawImage(
         image,
-        puddle.x - size / 2,
-        puddle.y - size / 2,
+        screenPosition.x - size / 2,
+        screenPosition.y - size / 2,
         size,
         size,
     );
@@ -156,7 +161,7 @@ export function drawColorPuddle(ctx, puddle, image) {
 //========================================
 //インク池警察
 //========================================
-export function updateColorPuddleCollision(vehicle,puddles) {
+export function updateColorPuddleCollision(vehicle, puddles) {
     const master = vehicleMaster[vehicle.type];
 
     if (!master.canChangeColor) return;  //色変可能なくるまかどうかチェック！

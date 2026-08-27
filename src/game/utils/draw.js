@@ -31,3 +31,19 @@ export function drawRectShadow(ctx, x, y, width, height, radius = 8) {
   ctx.fillStyle = "rgba(0,0,0,0.2)";
   ctx.fill();
 }
+
+//世界座標をカメラ座標（スクリーン）に変換する係
+export function worldToScreen(x, y, camera) {
+  return {
+    x: x - camera.x,
+    y: y - camera.y,
+  };
+}
+
+//カメラ座標を世界座標に変換する係
+export function screenToWorld(x, y, camera) {
+  return {
+    x: x + camera.x,
+    y: y + camera.y,
+  };
+}

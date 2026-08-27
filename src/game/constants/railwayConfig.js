@@ -1,8 +1,8 @@
-//電車と踏切の情報だよ。
+//電車と踏切の情報だよ。etVehicles
 export const Railway = {
   //踏切
   CROSSING_X: 300,
-  CROSSING_Y: 950,
+  CROSSING_Y: 1550,
   CROSSING_WIDTH: 128,
   CROSSING_HEIGHT: 192,
 
@@ -10,6 +10,10 @@ export const Railway = {
   CROSSING_FRAME_HEIGHT: 192,
 
   CROSSING_FRAME_INTERVAL: 600,
+
+  //線路
+  RAILWAY_WIDTH: 768,
+  RAILWAY_HEIGHT: 105,
 
   //電車
   TRAIN_Y: 920,
@@ -25,7 +29,38 @@ export const Railway = {
     width: 1310,
     height: 30,
   },
+
 };
+
+
+//線路の世界座標
+export const railwayMap = [
+  {
+    x: -50,
+    y: 1500,
+  },
+  {
+    x: -50 + Railway.RAILWAY_WIDTH * 1,
+    y: 1500,
+  },
+  {
+    x: -50 + Railway.RAILWAY_WIDTH * 2,
+    y: 1500,
+  },
+  {
+    x: -50 + Railway.RAILWAY_WIDTH * 3,
+    y: 1500,
+  },
+  {
+    x: -50 + Railway.RAILWAY_WIDTH * 4,
+    y: 1500,
+  },
+  {
+    x: -50 + Railway.RAILWAY_WIDTH * 5,
+    y: 1500,
+  },
+];
+
 
 //電車の乗客の情報だよ。
 export const TrainPassenger = {

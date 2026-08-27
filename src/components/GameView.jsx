@@ -5,10 +5,19 @@ import SoundManager from "../SoundManager";
 //ゲーム内共通
 import {
   getRandomNumber,
+  clamp,
 } from "../game/utils/math";
 import {
   drawShadow,
+  worldToScreen,
+  screenToWorld,
 } from "../game/utils/draw";
+
+//世界とカメラの情報
+import {
+  Map,
+  Screen,
+} from "../game/constants/mapConfig";
 
 
 //車基本ステータス
@@ -58,8 +67,10 @@ import {
 //電車関係者
 import {
   Railway,
+  railwayMap,
 } from "../game/constants/railwayConfig";
 import {
+  drawRailways,
   drawCrossing,
   drawTrain,
   drawTrainPassengers,
@@ -113,6 +124,7 @@ import {
 } from "../game/others/colorPuddle";
 
 
+const CAMERA_MOVE_SPEED = 500;
 
 //ゲームの中身を描いてるところだよ。
 function GameView() {
@@ -184,6 +196,29 @@ function GameView() {
 
   const imagesRef = useRef({});
 
+  //カメラ座標管理人
+  const cameraRef = useRef({
+    x: 1000,
+    y: 0,
+  });
+
+  //カメラ移動管理人
+  const cameraDragRef = useRef({
+    isDragging: false,
+    wasDragging: false,
+
+    startX: 0,
+    startY: 0,
+    lastX: 0,
+    lastY: 0,
+
+    velocityX: 0,
+    velocityY: 0,
+
+    edgeX: 0,   //-1 → 左端、 0 → 端ではない、+1 → 右端
+    edgeY: 0,   //-1 → 上端、 0 → 端ではない、+1 → 下端
+  });
+
 
   // ======== オブジェクト管理人たち ========
 
@@ -224,7 +259,11 @@ function GameView() {
       direction: 1,
 
       x: -1344,
-      y: Railway.TRAIN_Y,
+      y: 0,
+
+      railwayOffset: {
+        y: 15,
+      },
 
       startTime: 0,
     },
@@ -272,11 +311,11 @@ function GameView() {
   });
   const fpsDisplayRef = useRef(null);
 
-////////////////////////////////////////////////////////////////////////
-//
-//                    ココから職人たち
-//
-////////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////
+  //
+  //                    ココから職人たち
+  //
+  ////////////////////////////////////////////////////////////////////////
 
   //ランダム再生係
   function playRandomSound(soundNames) {
@@ -290,7 +329,7 @@ function GameView() {
   //===============================
   //          当たり判定
   //===============================
-  //おさわりチェック係
+  //付箋とかおさわりチェック係
   function isPointInsideRect(x, y, rect) {
     return (
       x >= rect.x &&
@@ -535,6 +574,50 @@ function GameView() {
 
   }
 
+
+  //のりもの監督
+  function updateVehicle(now, deltaTime) {
+    setVehicles((prevVehicles) => {
+      const newVehicles = [...prevVehicles];
+
+      const vehicle = {
+        ...newVehicles[0],
+        position: { ...newVehicles[0].position },
+        target: { ...newVehicles[0].target },
+        transform: { ...newVehicles[0].transform },
+        effect: { ...newVehicles[0].effect },
+
+        actionState: newVehicles[0].actionState
+          ? {
+            ...newVehicles[0].actionState,
+
+            hiyoko: newVehicles[0].actionState.hiyoko
+              ? { ...newVehicles[0].actionState.hiyoko }
+              : undefined,
+          }
+          : undefined,
+      };
+
+      const master = vehicleMaster[vehicle.type];
+
+      const dx = vehicle.target.x - vehicle.position.x;
+      const dy = vehicle.target.y - vehicle.position.y;
+      const distance = Math.hypot(dx, dy);
+
+      updateDirection(vehicle, dx, dy);
+      updateAnimation(vehicle, animationTimerRef, deltaTime);
+      updatePosition(vehicle, master, dx, dy, distance, deltaTime);
+      updateColorPuddleCollision(vehicle, colorPuddlesRef.current);
+      updateEffect(vehicle, now);
+      updateFireFightAction(vehicle, now, soundManagerRef.current);
+      updatePoliceCarAction(vehicle, now);
+
+
+      newVehicles[0] = vehicle;
+      return newVehicles;
+    });
+  }
+
   //車種変更係
   function changeVehicleType(newType) {
     vehicleSelectEffectRef.current = {
@@ -578,50 +661,6 @@ function GameView() {
       vehicle.effect.type = null;
       vehicle.transform.scaleX = 1;
       vehicle.transform.scaleY = 1;
-
-      newVehicles[0] = vehicle;
-      return newVehicles;
-    });
-  }
-
-
-  //のりもの監督
-  function updateVehicle(now, deltaTime) {
-    setVehicles((prevVehicles) => {
-      const newVehicles = [...prevVehicles];
-
-      const vehicle = {
-        ...newVehicles[0],
-        position: { ...newVehicles[0].position },
-        target: { ...newVehicles[0].target },
-        transform: { ...newVehicles[0].transform },
-        effect: { ...newVehicles[0].effect },
-
-        actionState: newVehicles[0].actionState
-          ? {
-            ...newVehicles[0].actionState,
-
-            hiyoko: newVehicles[0].actionState.hiyoko
-              ? { ...newVehicles[0].actionState.hiyoko }
-              : undefined,
-          }
-          : undefined,
-      };
-
-      const master = vehicleMaster[vehicle.type];
-
-      const dx = vehicle.target.x - vehicle.position.x;
-      const dy = vehicle.target.y - vehicle.position.y;
-      const distance = Math.hypot(dx, dy);
-
-      updateDirection(vehicle, dx, dy);
-      updateAnimation(vehicle, animationTimerRef, deltaTime);
-      updatePosition(vehicle, master, dx, dy, distance, deltaTime);
-      updateColorPuddleCollision(vehicle, colorPuddlesRef.current);
-      updateEffect(vehicle, now);
-      updateFireFightAction(vehicle, now, soundManagerRef.current);
-      updatePoliceCarAction(vehicle, now);
-
 
       newVehicles[0] = vehicle;
       return newVehicles;
@@ -774,6 +813,95 @@ function GameView() {
   //=================================
   //　　　       入力
   //=================================
+
+  //指、置いた。
+  function handlePointerDown(event) {
+    const x =
+      event.nativeEvent.offsetX / scale;
+
+    const y =
+      event.nativeEvent.offsetY / scale;
+
+    cameraDragRef.current = {
+      isDragging: false,
+
+      startX: x,
+      startY: y,
+
+      lastX: x,
+      lastY: y,
+
+      velocityX: 0,   //リセット！
+      velocityY: 0,
+    };
+  }
+
+  //指、動かした。
+  function handlePointerMove(event) {
+    const drag = cameraDragRef.current;
+    if (!event.buttons) {
+      return;
+    }
+
+    if (
+      drag.startX == null ||
+      drag.startY == null
+    ) {
+      return;
+    }
+
+    const x =
+      event.nativeEvent.offsetX / scale;
+
+    const y =
+      event.nativeEvent.offsetY / scale;
+
+    const deltaX =
+      x - drag.lastX;
+
+    const deltaY =
+      y - drag.lastY;
+
+    //最後にどれくらい動いたか覚える
+    drag.velocityX = deltaX;
+    drag.velocityY = deltaY;
+
+    //動かした距離
+    const distance =
+      Math.hypot(
+        x - drag.startX,
+        y - drag.startY
+      );
+
+    //動かした距離が短い時はたっぷ判定、一定以上動いたらドラッグ開始
+    if (!drag.isDragging) {
+      if (distance < 5) {
+        return;
+      }
+
+      drag.isDragging = true;
+      drag.wasDragging = true;
+    }
+
+
+    //カメラをドラッグした分だけ動かす
+    moveCamera(
+      -deltaX,
+      -deltaY
+    );
+
+    drag.lastX = x;
+    drag.lastY = y;
+  }
+
+  //指、離した。
+  function handlePointerUp() {
+    cameraDragRef.current.isDragging = false;
+  }
+
+
+
+  //タップ
   async function handleClick(event) {
 
     //AudioContext起きて！
@@ -783,9 +911,23 @@ function GameView() {
       console.error("音声の準備に失敗しました", error);
     }
 
-    //座標チェック
+    //直前の操作がドラッグならクリックしない
+    if (cameraDragRef.current.wasDragging) {
+      cameraDragRef.current.wasDragging = false;
+      return;
+    }
+
+
+    //座標チェック（カメラ座標）
     const x = event.nativeEvent.offsetX / scale;
     const y = event.nativeEvent.offsetY / scale;
+
+    //世界座標を取得
+    const worldPosition = screenToWorld(
+      x,
+      y,
+      cameraRef.current
+    );
 
     const now = performance.now();
 
@@ -809,7 +951,7 @@ function GameView() {
     }
 
     //マップの小さいシャボン玉を触ったかな？
-    if (getTappedMapBubble(x, y)) {
+    if (getTappedMapBubble(worldPosition.x, worldPosition.y)) {
       startBubbleGame(now, bubbleGameRef.current);
       soundManagerRef.current.play("bubble");
       return;
@@ -818,7 +960,7 @@ function GameView() {
 
     //ひよこを触ったかな？
     const tappedNPC =
-      getTappedNPC(x, y);
+      getTappedNPC(worldPosition.x, worldPosition.y);
 
     if (tappedNPC) {
       startNPCJump(tappedNPC, now);
@@ -832,10 +974,16 @@ function GameView() {
     const train = railwayRef.current.train;
     if (train.isRunning) {
       const trainRect = getTrainRect(railwayRef.current.train);
-      if (isPointInsideRect(x, y, trainRect)) {
+      if (
+        isPointInsideRect(
+          worldPosition.x,
+          worldPosition.y,
+          trainRect
+        )
+      ) {
 
         const carIndex = getTappedTrainCarIndex(
-          x,
+          worldPosition.x,
           railwayRef.current.train
         ); //車両チェック
         //乗客いるかどうかチェック
@@ -852,7 +1000,11 @@ function GameView() {
           soundManagerRef.current.play("passengerAppear01");
         }
 
-        createTapSparkles(x, y, now, tapEffectsRef.current);  //きらきら～
+        createTapSparkles(
+          worldPosition.x,
+          worldPosition.y,
+          now,
+          tapEffectsRef.current);  //きらきら～
         return;
 
       }
@@ -860,7 +1012,13 @@ function GameView() {
 
     const crossingRect = getCrossingRect();
 
-    if (isPointInsideRect(x, y, crossingRect)) {
+    if (
+      isPointInsideRect(
+        worldPosition.x,
+        worldPosition.y,
+        crossingRect
+      )) {
+
       //電車出発準備！
       startTrain(
         now,
@@ -918,10 +1076,18 @@ function GameView() {
     //今いる車を触ったかな？
     const vehicle = vehiclesRef.current[0];
 
+    //君は消防車？
     if (vehicle.type === "fireEngine") {
       const vehicleRect = getVehicleRect(vehicle);
 
-      if (isPointInsideRect(x, y, vehicleRect)) {
+      if (
+        isPointInsideRect(
+          worldPosition.x,
+          worldPosition.y,
+          vehicleRect
+        )
+      ) {
+
         const isActionRunning =
           vehicle.actionState?.hiyoko?.jumpStartTime != null;
 
@@ -978,10 +1144,18 @@ function GameView() {
       }
     }
 
+
+    //君はパトカー？
     if (vehicle.type === "policeCar") {
       const vehicleRect = getVehicleRect(vehicle);
 
-      if (isPointInsideRect(x, y, vehicleRect)) {
+      if (
+        isPointInsideRect(
+          worldPosition.x,
+          worldPosition.y,
+          vehicleRect
+        )
+      ) {
         const isActionRunning =
           vehicle.actionState?.startTime != null;
 
@@ -1026,7 +1200,10 @@ function GameView() {
       const newVehicles = [...prevVehicles]; //newVehicle君に今の値をこぴ
       const vehicle = { ...newVehicles[0] };  //vehicle君（計算係）にそのセットの中のバスのやつ渡してあげて。
 
-      vehicle.target = { x, y };
+      vehicle.target = {
+        x: worldPosition.x,
+        y: worldPosition.y,
+      };
       //バスを移動状態にするよ！
       vehicle.state = State.MOVE;
       //ぽよん準備
@@ -1045,9 +1222,11 @@ function GameView() {
   //=================================
   //　　　       描画
   //=================================
-    //のりもの描画係
+
+  //のりもの描画係
   function drawVehicle(ctx, vehicle, now) {
     const master = vehicleMaster[vehicle.type];
+    const shadow = master.shadow;
 
     const imageName = master.skins[vehicle.skin]; //何色？
     const image = imagesRef.current[imageName];
@@ -1087,8 +1266,25 @@ function GameView() {
     const sx = frame * frameWidth;       //アニメーション用の場所指定してるよ。
     const sy = vehicle.direction * frameHeight;  //どこ向いてるかな？？によって切り取る場所を変えるよ。
 
+    //カメラ座標に変換
+    const screenPosition = worldToScreen(
+      vehicle.position.x,
+      vehicle.position.y,
+      cameraRef.current
+    );
+
     const drawWidth = frameWidth * vehicle.transform.scaleX;
     const drawHeight = frameHeight * vehicle.transform.scaleY;
+
+
+    // 影
+    drawShadow(
+      ctx,
+      screenPosition.x,
+      screenPosition.y + shadow.offsetY,
+      shadow.width,
+      shadow.height
+    );
 
     ctx.drawImage(
       image,
@@ -1098,28 +1294,45 @@ function GameView() {
       frameWidth,
       frameHeight,
 
-      vehicle.position.x - drawWidth / 2,
-      vehicle.position.y - drawHeight / 2,
+      screenPosition.x - drawWidth / 2,
+      screenPosition.y - drawHeight / 2,
       drawWidth,
       drawHeight,
     );
   }
-  
+
+
+  //描画本部
+
   function draw(ctx, now) {
-    const background = imagesRef.current.background;
+    const background = imagesRef.current.background02;
 
     //一回画面をきれいにする。
     ctx.clearRect(0, 0, 1920, 1080);
 
     //背景描いてる部署
-    ctx.drawImage(background, 0, 0);
+    const camera = cameraRef.current;
+    ctx.drawImage(
+      background,
+      -camera.x,
+      -camera.y
+    );
+
+    //線路描画係
+    drawRailways(
+      ctx,
+      railwayMap,
+      imagesRef.current.railway01,
+      cameraRef.current
+    );
 
     //インク池描画係
     for (const puddle of colorPuddlesRef.current) {
       drawColorPuddle(
         ctx,
         puddle,
-        imagesRef.current[puddle.imageName]
+        imagesRef.current[puddle.imageName],
+        cameraRef.current
       );
     }
 
@@ -1127,7 +1340,8 @@ function GameView() {
     drawMapBubble(
       ctx,
       bubbleGameRef.current,
-      imagesRef.current.bubble
+      imagesRef.current.bubble,
+      cameraRef.current
     );
 
     //NPC描画係
@@ -1135,37 +1349,34 @@ function GameView() {
       ctx,
       npcsRef.current,
       now,
-      (imageKey) => imagesRef.current[imageKey]
+      (imageKey) => imagesRef.current[imageKey],
+      cameraRef.current
     );
 
     //動かすのりもの描画係
     const vehicle = vehiclesRef.current[0];
-    const master = vehicleMaster[vehicle.type];
-    const shadow = master.shadow;
-
-    drawShadow(
-      ctx,
-      vehicle.position.x,
-      vehicle.position.y + shadow.offsetY,
-      shadow.width,
-      shadow.height
-    );
-
     drawVehicle(ctx, vehicle, now);
 
     if (vehicle.type === "fireEngine") {
-      drawFireFightHiyokoShadow(ctx, vehicle, now);
+      drawFireFightHiyokoShadow(
+        ctx,
+        vehicle,
+        now,
+        cameraRef.current
+      );
       drawFireFightHiyoko(
         ctx,
         vehicle,
         now,
-        imagesRef.current.fireFightAction01
+        imagesRef.current.fireFightAction01,
+        cameraRef.current
       );
       drawFireFightWater(
         ctx,
         vehicle,
         now,
-        imagesRef.current.fireFightAction02
+        imagesRef.current.fireFightAction02,
+        cameraRef.current
       );
     }
 
@@ -1173,7 +1384,8 @@ function GameView() {
     drawTrain(
       ctx,
       imagesRef.current.train01,
-      railwayRef.current.train
+      railwayRef.current.train,
+      cameraRef.current
     );
     //電車の乗客描画係
     drawTrainPassengers(
@@ -1181,13 +1393,15 @@ function GameView() {
       now,
       railwayRef.current.train,
       trainPassengersRef.current,
-      (imageKey) => imagesRef.current[imageKey]
+      (imageKey) => imagesRef.current[imageKey],
+      cameraRef.current
     );
     //踏切描画係
     drawCrossing(
       ctx,
       imagesRef.current.crossing01,
-      railwayRef.current.crossing
+      railwayRef.current.crossing,
+      cameraRef.current
     );
     //しゃぼんだま描画係
     drawBubbles(
@@ -1202,7 +1416,8 @@ function GameView() {
       ctx,
       now,
       tapEffectsRef.current,
-      imagesRef.current.tEffect01
+      imagesRef.current.tEffect01,
+      cameraRef.current
     );
     //メニュー描画係
     drawVehicleMenu(
@@ -1222,10 +1437,97 @@ function GameView() {
   }
 
 
+  //===============================
+  //          カメラ本部
+  //===============================
+
+  //カメラを移動する係
+  function moveCamera(dx, dy) {
+    const camera = cameraRef.current;
+    const drag = cameraDragRef.current;
+
+    const nextX = camera.x + dx;
+    const nextY = camera.y + dy;
+
+    //マップの端にぶつかったかチェック
+    if (nextX < 0) {
+      drag.edgeX = -1;
+    } else if (
+      nextX > Map.WIDTH - Screen.WIDTH
+    ) {
+      drag.edgeX = 1;
+    } else {
+      drag.edgeX = 0;
+    }
+
+    if (nextY < 0) {
+      drag.edgeY = -1;
+    } else if (
+      nextY > Map.HEIGHT - Screen.HEIGHT
+    ) {
+      drag.edgeY = 1;
+    } else {
+      drag.edgeY = 0;
+    }
+
+    camera.x = nextX;
+    camera.y = nextY;
+
+    //マップの外には出ない
+    camera.x = clamp(
+      camera.x,
+      0,
+      Map.WIDTH - Screen.WIDTH
+    );
+
+    camera.y = clamp(
+      camera.y,
+      0,
+      Map.HEIGHT - Screen.HEIGHT
+    );
+  }
+
+  //カメラの慣性を動かす係
+  function updateCameraInertia() {
+    const drag = cameraDragRef.current;
+
+    if (drag.isDragging) {
+      return;
+    }
+
+    if (
+      drag.velocityX === 0 &&
+      drag.velocityY === 0
+    ) {
+      return;
+    }
+
+    moveCamera(
+      -drag.velocityX,
+      -drag.velocityY
+    );
+
+    //減速係数
+    const friction = 0.9;
+    //だんだんゆっくり
+    drag.velocityX *= friction;
+    drag.velocityY *= friction;
+
+    //十分小さくなったら完全停止
+    if (
+      Math.abs(drag.velocityX) < 0.1 &&
+      Math.abs(drag.velocityY) < 0.1
+    ) {
+      drag.velocityX = 0;
+      drag.velocityY = 0;
+    }
+  }
+
   //=================================
   //　　　    現場監督
   //=================================
   function update(now, deltaTime) {
+    updateCameraInertia();
     updateVehicle(now, deltaTime);
     updateNPCs(now, deltaTime);
     updateVehicleMenu(now, vehicleMenuRef.current);
@@ -1252,6 +1554,9 @@ function GameView() {
     }
   }
 
+
+
+
   //画像読み込み所
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1261,7 +1566,7 @@ function GameView() {
 
     //画像はここから。
     const imageNames = [
-      "background",
+      "background02",
 
       "bus01", "bus02", "bus03", "bus04",
       "bus05", "bus06", "bus07", "bus08",
@@ -1284,6 +1589,7 @@ function GameView() {
       "menuTag01",
       "selectAnimation01",
 
+      "railway01",
       "bubble", "bubblePop",
     ];
 
@@ -1312,6 +1618,7 @@ function GameView() {
   }, []);
 
 
+
   //ウインドウサイズ監視君。変更があったらゲーム画面の大きさを変えてくれるところ。
   useEffect(() => {
     function handleResize() {
@@ -1328,7 +1635,7 @@ function GameView() {
     };
   }, []);
 
-  //車の情報が変わったら入れるよ
+  //車情報をRefに同期
   useEffect(() => {
     vehiclesRef.current = vehicles;
   }, [vehicles]);
@@ -1447,6 +1754,10 @@ function GameView() {
             height: `${1080 * scale}px`
           }}
           onClick={handleClick}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
         />
 
         <div

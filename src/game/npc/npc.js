@@ -13,7 +13,10 @@ import {
   clamp,
 } from "../utils/math";
 
-import { drawShadow } from "../utils/draw";
+import {
+  drawShadow,
+  worldToScreen,
+} from "../utils/draw";
 import { State } from "../constants/vehicleMaster";
 
 //================================================
@@ -210,7 +213,7 @@ export function getNPCJumpTransform(npc, now) {
 //=======================================
 //ひよこを1羽描く係
 //=======================================
-export function drawNPC(ctx, npc, now, image) {
+export function drawNPC(ctx, npc, now, image, camera) {
   const master = npcMaster[npc.type];
   if (!master) {
     return;
@@ -220,11 +223,18 @@ export function drawNPC(ctx, npc, now, image) {
     npc.behavior.type === NPCBehaviorType.RIDE_BUS ||
     npc.behavior.type === NPCBehaviorType.EXIT_BUS;
 
+  const screenPosition = worldToScreen(
+    npc.position.x,
+    npc.position.y,
+    camera
+  );
+
+
   if (!isInsideBus) {
     drawShadow(
       ctx,
-      npc.position.x,
-      npc.position.y,
+      screenPosition.x,
+      screenPosition.y,
       master.shadow.width,
       master.shadow.height
     );
@@ -244,8 +254,8 @@ export function drawNPC(ctx, npc, now, image) {
 
   //NPCの足元へ移動
   ctx.translate(
-    npc.position.x,
-    npc.position.y +
+    screenPosition.x,
+    screenPosition.y +
     jumpTransform.offsetY
   );
 
@@ -276,7 +286,7 @@ export function drawNPC(ctx, npc, now, image) {
 //===================================
 //全てのひよこたちを描く係
 //===================================
-export function drawNPCs(ctx, npcs, now, getImage) {
+export function drawNPCs(ctx, npcs, now, getImage, camera) {
   for (const npc of npcs) {
     const master = npcMaster[npc.type];
     if (!master) {
@@ -285,7 +295,7 @@ export function drawNPCs(ctx, npcs, now, getImage) {
 
     const image = getImage(master.imageKey);
 
-    drawNPC(ctx, npc, now, image);
+    drawNPC(ctx, npc, now, image, camera);
   }
 }
 
