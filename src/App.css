@@ -30,6 +30,8 @@ body,
   background: #aaa;
 
   display: block;
+  
+  touch-action: none;
 }
 
 .world {

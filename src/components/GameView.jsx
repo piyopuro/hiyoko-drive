@@ -123,8 +123,7 @@ import {
   updateColorPuddleCollision,
 } from "../game/others/colorPuddle";
 
-
-const CAMERA_MOVE_SPEED = 500;
+const CAMERA_EDGE_BOUNCE = 0.3;
 
 //ゲームの中身を描いてるところだよ。
 function GameView() {
@@ -217,6 +216,9 @@ function GameView() {
 
     edgeX: 0,   //-1 → 左端、 0 → 端ではない、+1 → 右端
     edgeY: 0,   //-1 → 上端、 0 → 端ではない、+1 → 下端
+
+    edgePushX: 0,
+    edgePushY: 0,
   });
 
 
@@ -833,6 +835,9 @@ function GameView() {
 
       velocityX: 0,   //リセット！
       velocityY: 0,
+      
+      edgePushX: 0,
+      edgePushY: 0,
     };
   }
 
@@ -882,6 +887,15 @@ function GameView() {
       drag.isDragging = true;
       drag.wasDragging = true;
     }
+
+    //マップの端を押しているか
+    const pushingEdgeX =
+      (drag.edgeX === -1 && deltaX < 0) ||
+      (drag.edgeX === 1 && deltaX > 0);
+
+    const pushingEdgeY =
+      (drag.edgeY === -1 && deltaY < 0) ||
+      (drag.edgeY === 1 && deltaY > 0);
 
 
     //カメラをドラッグした分だけ動かす
