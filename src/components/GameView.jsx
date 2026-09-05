@@ -190,6 +190,10 @@ function GameView() {
   if (!npcsRef.current) {
     npcsRef.current = [
       createNPC("hiyoko", 500, 540),
+      createNPC("hiyoko", 800, 500),
+      createNPC("hiyoko", 1100, 600),
+      createNPC("hiyoko", 1400, 450),
+      createNPC("hiyoko", 1700, 550),
     ].filter(Boolean);
   }
 
@@ -732,7 +736,13 @@ function GameView() {
       //バスに乗ったかな？
       if (npc.behavior.type === NPCBehaviorType.BOARD_BUS) {
         const boarded =
-          updateNPCBoarding(npc, vehicle, now, soundManagerRef.current);
+          updateNPCBoarding(
+            npc,
+            vehicle,
+            now,
+            soundManagerRef.current,
+            npcsRef.current
+          );
         if (boarded) {
           continue;
         }
@@ -835,7 +845,7 @@ function GameView() {
 
       velocityX: 0,   //リセット！
       velocityY: 0,
-      
+
       edgePushX: 0,
       edgePushY: 0,
     };
@@ -867,9 +877,6 @@ function GameView() {
     const deltaY =
       y - drag.lastY;
 
-    //最後にどれくらい動いたか覚える
-    drag.velocityX = deltaX;
-    drag.velocityY = deltaY;
 
     //動かした距離
     const distance =
@@ -880,13 +887,24 @@ function GameView() {
 
     //動かした距離が短い時はたっぷ判定、一定以上動いたらドラッグ開始
     if (!drag.isDragging) {
-      if (distance < 5) {
+      if (distance < 20) {
+        drag.lastX = x;
+        drag.lastY = y;
+
+        //まだドラッグしていないので、慣性も発生させない
+        drag.velocityX = 0;
+        drag.velocityY = 0;
+
         return;
       }
 
       drag.isDragging = true;
       drag.wasDragging = true;
     }
+
+    //最後にどれくらい動いたか覚える
+    drag.velocityX = deltaX;
+    drag.velocityY = deltaY;
 
     //マップの端を押しているか
     const pushingEdgeX =

@@ -1,6 +1,6 @@
 import { Direction, State } from "../constants/vehicleMaster";
 import { NPCDirection, NPCBehaviorType, NPCState, npcMaster, } from "../constants/npcMaster";
-import {  getRandomNumber} from "../utils/math";
+import { getRandomNumber } from "../utils/math";
 
 export const BusPassenger = {
   BOARD_DISTANCE: 170,
@@ -9,6 +9,8 @@ export const BusPassenger = {
   EXIT_DELAY: 400,
   REBOARD_COOLDOWN: 3000,
 
+  MAX_PASSENGERS: 3,
+
   //バスの出入口
   doorOffsets: {
     [Direction.RIGHT]: { x: 90, y: 28 },
@@ -16,15 +18,44 @@ export const BusPassenger = {
     [Direction.FRONT]: { x: 45, y: 45 },
     [Direction.BACK]: { x: -45, y: 45 },
   },
+  /*旧座標
+    // バスに乗っている間の位置
+    ridingOffsets: {
+      [Direction.RIGHT]: { x: -32, y: 24 },
+      [Direction.LEFT]: { x: 33, y: 24 },
+  
+      // 前後は隠れるので仮位置
+      [Direction.FRONT]: { x: 10, y: 10 },
+      [Direction.BACK]: { x: 10, y: 10 },
+    },
+    */
 
   // バスに乗っている間の位置
   ridingOffsets: {
-    [Direction.RIGHT]: { x: -32, y: 24 },
-    [Direction.LEFT]: { x: 33, y: 24 },
+    [Direction.RIGHT]: [
+      { x: -85, y: 24 },
+      { x: -29, y: 24 },
+      { x: 24, y: 24 },
+    ],
 
-    // 前後は隠れるので仮位置
-    [Direction.FRONT]: { x: 10, y: 10 },
-    [Direction.BACK]: { x: 10, y: 10 },
+    [Direction.LEFT]: [
+      { x: 80, y: 24 },
+      { x: 27, y: 24 },
+      { x: -29, y: 24 },
+    ],
+    
+    // 前後向き
+    [Direction.FRONT]: [
+      { x: -18, y: 10 },
+      { x: 10, y: 10 },
+      { x: 38, y: 10 },
+    ],
+
+    [Direction.BACK]: [
+      { x: -18, y: 10 },
+      { x: 10, y: 10 },
+      { x: 38, y: 10 },
+    ],
   },
 };
 
@@ -46,16 +77,18 @@ export function getBusDoorPosition(vehicle) {
 }
 
 //バスの中のひよこ位置を教える係
-export function getBusRidingPosition(vehicle) {
-  const offset =
+export function getBusRidingPosition(vehicle, seatIndex = 0) {
+  const offsets =
     BusPassenger.ridingOffsets[vehicle.direction];
+
+  const offset =
+    offsets[seatIndex] ?? offsets[0];
 
   return {
     x: vehicle.position.x + offset.x,
     y: vehicle.position.y + offset.y,
   };
 }
-
 
 //====================================
 //バスの向きを教える係
@@ -154,11 +187,56 @@ export function tryStartNPCBoarding(npc, vehicle, now) {
 }
 
 
+//======================================
+//バスの空いている席を探す係
+//======================================
+
+export function getAvailableBusSeatIndex(npcs, vehicle) {
+  const occupiedSeats = new Set();
+
+  for (const npc of npcs) {
+    if (
+      npc.behavior.vehicleId !== vehicle.id
+    ) {
+      continue;
+    }
+
+    if (
+      npc.behavior.type !== NPCBehaviorType.BOARD_BUS &&
+      npc.behavior.type !== NPCBehaviorType.RIDE_BUS &&
+      npc.behavior.type !== NPCBehaviorType.EXIT_BUS
+    ) {
+      continue;
+    }
+
+    if (
+      Number.isInteger(npc.behavior.busSeatIndex)
+    ) {
+      occupiedSeats.add(
+        npc.behavior.busSeatIndex
+      );
+    }
+  }
+
+  for (
+    let i = 0;
+    i < BusPassenger.MAX_PASSENGERS;
+    i++
+  ) {
+    if (!occupiedSeats.has(i)) {
+      return i;
+    }
+  }
+
+  return null;
+}
+
+
 //==========================
 //バスまでひよこを歩かせる係
 //==========================
 
-export function updateNPCBoarding(npc, vehicle, now, soundManager) {
+export function updateNPCBoarding(npc, vehicle, now, soundManager, npcs) {
   //バスが発進してしまったら乗車を中止
   if (
     vehicle.type !== "bus" ||
@@ -167,6 +245,7 @@ export function updateNPCBoarding(npc, vehicle, now, soundManager) {
     npc.behavior.type = NPCBehaviorType.WANDER;
 
     npc.behavior.vehicleId = null;
+    npc.behavior.busSeatIndex = null;
 
     npc.state = NPCState.IDLE;
     npc.frame = 0;
@@ -196,10 +275,37 @@ export function updateNPCBoarding(npc, vehicle, now, soundManager) {
     return false;
   }
 
+
+  //乗車口まで行ったら席が空いているかどうか確認！
+
+  const seatIndex =
+    getAvailableBusSeatIndex(npcs, vehicle);
+
+  if (seatIndex === null) {
+    //満員だったので乗車しない
+    npc.behavior.type =
+      NPCBehaviorType.WANDER;
+
+    npc.behavior.vehicleId = null;
+    npc.behavior.busSeatIndex = null;
+
+    npc.state = NPCState.IDLE;
+    npc.frame = 0;
+
+    npc.behavior.canBoardAfter =
+      now + BusPassenger.REBOARD_COOLDOWN;
+
+    npc.waitUntil =
+      now + getRandomNumber(300, 700);
+
+    return false;
+  }
+
   //乗車完了！
   npc.behavior.type =
     NPCBehaviorType.RIDE_BUS;
 
+  npc.behavior.busSeatIndex = seatIndex;
   npc.behavior.isWaitingForArrival = false;
   npc.behavior.rideCount = 0;
   npc.behavior.rideTargetCount = getBusRideTargetCount();
@@ -207,7 +313,11 @@ export function updateNPCBoarding(npc, vehicle, now, soundManager) {
   npc.state = NPCState.IDLE;
   npc.frame = 0;
 
-  const ridingPosition = getBusRidingPosition(vehicle);
+  const ridingPosition =
+    getBusRidingPosition(
+      vehicle,
+      npc.behavior.busSeatIndex
+    );
 
   npc.position.x = ridingPosition.x;
   npc.position.y = ridingPosition.y;
@@ -235,6 +345,7 @@ export function updateNPCRidingBus(npc, vehicle, now) {
       NPCBehaviorType.WANDER;
 
     npc.behavior.vehicleId = null;
+    npc.behavior.busSeatIndex = null;
     npc.behavior.isWaitingForArrival = false;
 
     npc.state = NPCState.IDLE;
@@ -243,7 +354,11 @@ export function updateNPCRidingBus(npc, vehicle, now) {
     return;
   }
 
-  const ridingPosition = getBusRidingPosition(vehicle);
+  const ridingPosition =
+    getBusRidingPosition(
+      vehicle,
+      npc.behavior.busSeatIndex
+    );
 
   npc.position.x = ridingPosition.x;
   npc.position.y = ridingPosition.y;
@@ -287,7 +402,11 @@ export function updateNPCRidingBus(npc, vehicle, now) {
 export function updateNPCExitingBus(npc, vehicle, now, soundManager) {
   //待ち時間中はまだバスの中
   if (now < npc.behavior.exitAt) {
-    const ridingPosition = getBusRidingPosition(vehicle);
+    const ridingPosition =
+      getBusRidingPosition(
+        vehicle,
+        npc.behavior.busSeatIndex
+      );
 
     npc.position.x = ridingPosition.x;
     npc.position.y = ridingPosition.y;
@@ -314,6 +433,7 @@ export function updateNPCExitingBus(npc, vehicle, now, soundManager) {
   npc.behavior.type = NPCBehaviorType.WANDER;
 
   npc.behavior.vehicleId = null;
+  npc.behavior.busSeatIndex = null;
   npc.behavior.isWaitingForArrival = false;
   npc.behavior.rideCount = 0;
   npc.behavior.rideTargetCount = 0;

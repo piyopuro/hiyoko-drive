@@ -67,6 +67,8 @@ export function createNPC(type, startX, startY) {
       rideCount: 0,
       rideTargetCount: 0,
 
+      busSeatIndex: null,
+
       exitAt: 0,
       canBoardAfter: 0,
     },

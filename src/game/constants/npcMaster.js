@@ -1,3 +1,5 @@
+import { Map } from "./mapConfig";
+
 //========ひよこたち========
 
 export const NPCState = {
@@ -34,10 +36,11 @@ export const NPCFleeConfig = {
 
 export const NPCWalkArea = {
   LEFT: 100,
-  RIGHT: 1820,
+  RIGHT: Map.WIDTH - 100,
   TOP: 120,
-  BOTTOM: 800,
+  BOTTOM: Map.HEIGHT - 120,
 };
+
 
 //ひよこたちの基本情報
 export const npcMaster = {
