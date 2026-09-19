@@ -5,6 +5,7 @@ import {
   NPCAction,
   NPCBehaviorType,
   NPCFleeConfig,
+  NPCDragConfig,
   NPCWalkArea,
 } from "../constants/npcMaster";
 
@@ -83,6 +84,19 @@ export function createNPC(type, startX, startY) {
       duration: 0,
     },
 
+
+    drag: {
+      isDragging: false,
+      offsetX: 0,
+      offsetY: 0,
+      velocityX: 0,
+      velocityY: 0,
+      lastMoveTime: 0,
+      wobbleStartTime: 0,
+      releaseVelocityX: 0,
+      releaseVelocityY: 0,
+    },
+
     waitUntil:
       performance.now() +
       getRandomNumber(
@@ -90,6 +104,167 @@ export function createNPC(type, startX, startY) {
         master.waitTime.max
       ),
 
+  };
+}
+
+
+//======================================
+//ひよこを摘まむ係
+//======================================
+export function startNPCDrag(npc, worldX, worldY, now) {
+  npc.drag.isDragging = true;
+  npc.drag.offsetX = npc.position.x - worldX;
+  npc.drag.offsetY = npc.position.y - worldY;
+  npc.drag.velocityX = 0;
+  npc.drag.velocityY = 0;
+  npc.drag.lastMoveTime = now;
+  npc.drag.wobbleStartTime = now;
+  npc.drag.releaseVelocityX = 0;
+  npc.drag.releaseVelocityY = 0;
+
+  //摘まんでいる間は普段の行動を止める
+  npc.state = NPCState.IDLE;
+  npc.behavior.type = NPCBehaviorType.WANDER;
+  npc.target.x = npc.position.x;
+  npc.target.y = npc.position.y;
+  npc.action.type = null;
+  npc.frame = 0;
+}
+
+export function updateNPCDrag(npc, worldX, worldY, now) {
+  if (!npc.drag.isDragging) {
+    return;
+  }
+
+  const previousTime = npc.drag.lastMoveTime;
+  const elapsed = Math.max(now - previousTime, 1);
+
+  const nextX = clamp(
+    worldX + npc.drag.offsetX,
+    NPCWalkArea.LEFT,
+    NPCWalkArea.RIGHT
+  );
+  const nextY = clamp(
+    worldY + npc.drag.offsetY,
+    NPCWalkArea.TOP,
+    NPCWalkArea.BOTTOM
+  );
+
+  const deltaX = nextX - npc.position.x;
+  const deltaY = nextY - npc.position.y;
+
+  npc.position.x = nextX;
+  npc.position.y = nextY;
+
+  const velocityScale = 1000 / elapsed;
+  npc.drag.velocityX = clamp(
+    deltaX * velocityScale,
+    -NPCDragConfig.MAX_RELEASE_SPEED,
+    NPCDragConfig.MAX_RELEASE_SPEED
+  );
+  npc.drag.velocityY = clamp(
+    deltaY * velocityScale,
+    -NPCDragConfig.MAX_RELEASE_SPEED,
+    NPCDragConfig.MAX_RELEASE_SPEED
+  );
+  npc.drag.lastMoveTime = now;
+}
+
+export function endNPCDrag(npc) {
+  if (!npc.drag.isDragging) {
+    return;
+  }
+
+  npc.drag.isDragging = false;
+  npc.drag.releaseVelocityX =
+    npc.drag.velocityX *
+    NPCDragConfig.RELEASE_VELOCITY_MULTIPLIER;
+  npc.drag.releaseVelocityY =
+    npc.drag.velocityY *
+    NPCDragConfig.RELEASE_VELOCITY_MULTIPLIER;
+}
+
+export function updateNPCDragRelease(npc, deltaTime) {
+  const vx = npc.drag.releaseVelocityX;
+  const vy = npc.drag.releaseVelocityY;
+
+  if (
+    Math.abs(vx) < NPCDragConfig.RELEASE_STOP_SPEED &&
+    Math.abs(vy) < NPCDragConfig.RELEASE_STOP_SPEED
+  ) {
+    npc.drag.releaseVelocityX = 0;
+    npc.drag.releaseVelocityY = 0;
+    npc.action = {
+
+      type: "dragLanding",
+      startTime: performance.now(),
+      duration: NPCDragConfig.RELEASE_LANDING_DURATION,
+    };
+    return false;
+  }
+
+  const moveScale = deltaTime;
+
+  npc.position.x = clamp(
+    npc.position.x + vx * moveScale,
+    NPCWalkArea.LEFT,
+    NPCWalkArea.RIGHT
+  );
+  npc.position.y = clamp(
+    npc.position.y + vy * moveScale,
+    NPCWalkArea.TOP,
+    NPCWalkArea.BOTTOM
+  );
+
+  npc.drag.releaseVelocityX *= NPCDragConfig.RELEASE_FRICTION;
+  npc.drag.releaseVelocityY *= NPCDragConfig.RELEASE_FRICTION;
+
+  return true;
+}
+
+export function getNPCDragTransform(npc, now) {
+  if (npc.drag.isDragging) {
+    const elapsed = now - npc.drag.wobbleStartTime;
+    const wobble = Math.sin(
+      elapsed * NPCDragConfig.WOBBLE_SPEED
+    );
+
+    return {
+      offsetY: -NPCDragConfig.LIFT_OFFSET_Y,
+      rotation: wobble * NPCDragConfig.WOBBLE_ANGLE,
+      scaleY: 1,
+    };
+  }
+
+  if (npc.action.type === "dragLanding") {
+    const elapsed = now - npc.action.startTime;
+    const progress = Math.min(
+      elapsed / npc.action.duration,
+      1
+    );
+
+    if (progress < 0.35) {
+      const t = progress / 0.35;
+      return {
+        offsetY: 0,
+        rotation: 0,
+        scaleY: 1 + (0.55 - 1) * t,
+      };
+    }
+    const t =
+      (progress - 0.35) / (1 - 0.35);
+
+    return {
+      offsetY: 0,
+      rotation: 0,
+      scaleY: 0.55 + (1 - 0.55) * t,
+    };
+  }
+
+  return {
+    offsetY: 0,
+    rotation: 0,
+    scaleY: 1,
   };
 }
 
@@ -251,6 +426,7 @@ export function drawNPC(ctx, npc, now, image, camera) {
   const sy = row * master.frameHeight;
 
   const jumpTransform = getNPCJumpTransform(npc, now);
+  const dragTransform = getNPCDragTransform(npc, now);
 
   ctx.save();
 
@@ -258,13 +434,17 @@ export function drawNPC(ctx, npc, now, image, camera) {
   ctx.translate(
     screenPosition.x,
     screenPosition.y +
-    jumpTransform.offsetY
+    jumpTransform.offsetY +
+    dragTransform.offsetY
   );
+
+  ctx.rotate(dragTransform.rotation);
 
   //足元を基準に縦方向へ変形
   ctx.scale(
     1,
-    jumpTransform.scaleY
+    jumpTransform.scaleY *
+    dragTransform.scaleY
   );
 
   ctx.drawImage(

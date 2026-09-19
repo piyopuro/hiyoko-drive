@@ -28,6 +28,19 @@ export const NPCBehaviorType = {
   EXIT_BUS: "exitBus",
 };
 
+export const NPCDragConfig = {
+  HOLD_TIME: 350,
+  HIT_RADIUS_PADDING: 14,
+  LIFT_OFFSET_Y: 24,
+  WOBBLE_ANGLE: 0.08,
+  WOBBLE_SPEED: 0.012,
+  RELEASE_VELOCITY_MULTIPLIER: 0.25,
+  RELEASE_FRICTION: 0.82,
+  RELEASE_STOP_SPEED: 8,
+  RELEASE_LANDING_DURATION: 230,
+  MAX_RELEASE_SPEED: 800,
+};
+
 export const NPCFleeConfig = {
   AVOID_DISTANCE: 170,       //この距離までバスが来たら逃げる
   FLEE_DISTANCE: 220,        //どれくらい先まで逃げるか

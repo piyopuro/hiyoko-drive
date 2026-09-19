@@ -3,7 +3,7 @@ import { NPCDirection, NPCBehaviorType, NPCState, npcMaster, } from "../constant
 import { getRandomNumber } from "../utils/math";
 
 export const BusPassenger = {
-  BOARD_DISTANCE: 170,
+  BOARD_DISTANCE: 300,    //バス乗車圏
   BOARD_ARRIVAL_DISTANCE: 4,
 
   EXIT_DELAY: 400,
@@ -18,17 +18,6 @@ export const BusPassenger = {
     [Direction.FRONT]: { x: 45, y: 45 },
     [Direction.BACK]: { x: -45, y: 45 },
   },
-  /*旧座標
-    // バスに乗っている間の位置
-    ridingOffsets: {
-      [Direction.RIGHT]: { x: -32, y: 24 },
-      [Direction.LEFT]: { x: 33, y: 24 },
-  
-      // 前後は隠れるので仮位置
-      [Direction.FRONT]: { x: 10, y: 10 },
-      [Direction.BACK]: { x: 10, y: 10 },
-    },
-    */
 
   // バスに乗っている間の位置
   ridingOffsets: {

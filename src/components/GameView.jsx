@@ -42,6 +42,7 @@ import {
 import {
   NPCState,
   NPCBehaviorType,
+  NPCDragConfig,
   NPCFleeConfig,
   npcMaster,
 } from "../game/constants/npcMaster";
@@ -49,6 +50,10 @@ import {
   createNPC,
   isNPCJumping,
   startNPCJump,
+  startNPCDrag,
+  updateNPCDrag,
+  endNPCDrag,
+  updateNPCDragRelease,
   drawNPCs,
   updateNPCDirection,
   updateNPCAnimation,
@@ -196,6 +201,19 @@ function GameView() {
       createNPC("hiyoko", 1700, 550),
     ].filter(Boolean);
   }
+
+  //ひよこ長押し・摘まみ操作の管理人
+  const npcPointerRef = useRef({
+    npc: null,
+    pointerId: null,
+    timerId: null,
+    isDragging: false,
+    startX: 0,
+    startY: 0,
+    lastX: 0,
+    lastY: 0,
+  });
+
 
   const imagesRef = useRef({});
 
@@ -438,18 +456,22 @@ function GameView() {
         continue;
       }
 
-      const left = npc.position.x - master.drawWidth / 2;
-      const right = npc.position.x + master.drawWidth / 2;
-      const top = npc.position.y - master.drawHeight;
-      const bottom = npc.position.y;
+      //バスに乗っているひよこは触れない
+      if (npc.behavior.type === NPCBehaviorType.RIDE_BUS) {
+        continue;
+      }
 
-      const isInside =
-        x >= left &&
-        x <= right &&
-        y >= top &&
-        y <= bottom;
+      //ひよこおさわり判定。見た目より少し大きめにして誤タップを減らす
+      const centerX = npc.position.x;
+      const centerY = npc.position.y - master.drawHeight / 2;
+      const radius =
+        Math.max(master.drawWidth, master.drawHeight) / 2 +
+        NPCDragConfig.HIT_RADIUS_PADDING;
 
-      if (isInside) {
+      const dx = x - centerX;
+      const dy = y - centerY;
+
+      if (dx * dx + dy * dy <= radius * radius) {
         return npc;
       }
     }
@@ -685,6 +707,44 @@ function GameView() {
         continue;
       }
 
+      //摘まんでいる間は通常のNPC処理を止める
+      if (npc.drag.isDragging) {
+        npc.frame = 0;
+        continue;
+      }
+
+      //慣性移動が終わったら、着地のぽよんを再生
+      if (npc.action.type === "dragLanding") {
+        const elapsed = now - npc.action.startTime;
+
+        if (elapsed >= npc.action.duration) {
+          npc.action.type = null;
+          npc.waitUntil = now + 120;
+        } else {
+          npc.frame = 0;
+          continue;
+        }
+      }
+
+      //摘まんで離した直後は少しだけ慣性で滑る
+      if (
+        npc.drag.releaseVelocityX !== 0 ||
+        npc.drag.releaseVelocityY !== 0
+      ) {
+        updateNPCDragRelease(npc, deltaTime);
+        npc.frame = 0;
+
+        if (
+          npc.drag.releaseVelocityX === 0 &&
+          npc.drag.releaseVelocityY === 0
+        ) {
+          npc.waitUntil = now + 120;
+        }
+
+        continue;
+      }
+
+
       //ジャンプ中
       if (isNPCJumping(npc)) {
         const elapsed =
@@ -834,6 +894,96 @@ function GameView() {
     const y =
       event.nativeEvent.offsetY / scale;
 
+    const worldPosition = screenToWorld(
+      x,
+      y,
+      cameraRef.current
+    );
+
+    const npc = getTappedNPC(
+      worldPosition.x,
+      worldPosition.y
+    );
+
+    //ひよこを触っているなら、まず長押し待ち
+    if (npc) {
+      const npcPointer = npcPointerRef.current;
+
+      npcPointer.npc = npc;
+      npcPointer.pointerId = event.pointerId;
+      npcPointer.isDragging = false;
+
+      if (npcPointer.timerId !== null) {
+        clearTimeout(npcPointer.timerId);
+      }
+
+      npcPointer.timerId = setTimeout(() => {
+        const current = npcPointerRef.current;
+
+        if (
+          current.npc !== npc ||
+          current.pointerId !== event.pointerId
+        ) {
+          return;
+        }
+
+        const movedDistance = Math.hypot(
+          current.lastX - current.startX,
+          current.lastY - current.startY
+        );
+
+        if (movedDistance > 20) {
+          return;
+        }
+
+        const currentX =
+          current.lastX ?? x;
+        const currentY =
+          current.lastY ?? y;
+        const currentWorld = screenToWorld(
+          currentX,
+          currentY,
+          cameraRef.current
+        );
+
+        startNPCDrag(
+          npc,
+          currentWorld.x,
+          currentWorld.y,
+          performance.now()
+        );
+
+        current.isDragging = true;
+        cameraDragRef.current.wasDragging = true;
+      }, NPCDragConfig.HOLD_TIME);
+
+      npcPointer.startX = x;
+      npcPointer.startY = y;
+      npcPointer.lastX = x;
+      npcPointer.lastY = y;
+
+      //カメラは動かさない
+      cameraDragRef.current = {
+        isDragging: false,
+        startX: x,
+        startY: y,
+        lastX: x,
+        lastY: y,
+        velocityX: 0,
+        velocityY: 0,
+        wasDragging: false,
+      };
+
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        // Pointer Capture非対応時はそのまま続行
+      }
+
+      return;
+    }
+
+
     cameraDragRef.current = {
       isDragging: false,
 
@@ -853,6 +1003,74 @@ function GameView() {
 
   //指、動かした。
   function handlePointerMove(event) {
+
+    const x =
+      event.nativeEvent.offsetX / scale;
+
+    const y =
+      event.nativeEvent.offsetY / scale;
+
+    const npcPointer = npcPointerRef.current;
+
+    //ひよこの長押し待ち／摘まみ中
+    if (
+      npcPointer.npc &&
+      npcPointer.pointerId === event.pointerId
+    ) {
+      const moveDistance = Math.hypot(
+        x - npcPointer.startX,
+        y - npcPointer.startY
+      );
+
+      npcPointer.lastX = x;
+      npcPointer.lastY = y;
+
+      if (npcPointer.isDragging) {
+        const worldPosition = screenToWorld(
+          x,
+          y,
+          cameraRef.current
+        );
+
+        updateNPCDrag(
+          npcPointer.npc,
+          worldPosition.x,
+          worldPosition.y,
+          performance.now()
+        );
+        return;
+      }
+
+      //長押し成立前に動かしたら、通常のカメラドラッグへ戻す
+      if (moveDistance > 20) {
+        if (npcPointer.timerId !== null) {
+          clearTimeout(npcPointer.timerId);
+        }
+
+        npcPointer.npc = null;
+        npcPointer.pointerId = null;
+        npcPointer.timerId = null;
+
+        cameraDragRef.current = {
+          ...cameraDragRef.current,
+          startX: x,
+          startY: y,
+          lastX: x,
+          lastY: y,
+          isDragging: true,
+          wasDragging: true,
+          velocityX: 0,
+          velocityY: 0,
+        };
+
+        return;
+      }
+
+      return;
+    }
+
+
+
     const drag = cameraDragRef.current;
     if (!event.buttons) {
       return;
@@ -864,12 +1082,6 @@ function GameView() {
     ) {
       return;
     }
-
-    const x =
-      event.nativeEvent.offsetX / scale;
-
-    const y =
-      event.nativeEvent.offsetY / scale;
 
     const deltaX =
       x - drag.lastX;
@@ -906,15 +1118,6 @@ function GameView() {
     drag.velocityX = deltaX;
     drag.velocityY = deltaY;
 
-    //マップの端を押しているか
-    const pushingEdgeX =
-      (drag.edgeX === -1 && deltaX < 0) ||
-      (drag.edgeX === 1 && deltaX > 0);
-
-    const pushingEdgeY =
-      (drag.edgeY === -1 && deltaY < 0) ||
-      (drag.edgeY === 1 && deltaY > 0);
-
 
     //カメラをドラッグした分だけ動かす
     moveCamera(
@@ -927,7 +1130,36 @@ function GameView() {
   }
 
   //指、離した。
-  function handlePointerUp() {
+  function handlePointerUp(event) {
+    const npcPointer = npcPointerRef.current;
+
+    if (
+      npcPointer.npc &&
+      npcPointer.pointerId === event.pointerId
+    ) {
+      if (npcPointer.timerId !== null) {
+        clearTimeout(npcPointer.timerId);
+      }
+
+      if (npcPointer.isDragging) {
+        endNPCDrag(npcPointer.npc);
+        cameraDragRef.current.wasDragging = true;
+      }
+
+      npcPointer.npc = null;
+      npcPointer.pointerId = null;
+      npcPointer.timerId = null;
+      npcPointer.isDragging = false;
+
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {
+        // Pointer Capture非対応時はそのまま続行
+      }
+
+      return;
+    }
+
     cameraDragRef.current.isDragging = false;
   }
 
