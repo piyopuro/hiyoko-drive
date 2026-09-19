@@ -179,7 +179,7 @@ export function endNPCDrag(npc) {
   npc.drag.releaseVelocityX =
     npc.drag.velocityX *
     NPCDragConfig.RELEASE_VELOCITY_MULTIPLIER;
-  npc.drag.releaseVelocityY =
+  npc.drag.releaseVelocityY =　
     npc.drag.velocityY *
     NPCDragConfig.RELEASE_VELOCITY_MULTIPLIER;
 }

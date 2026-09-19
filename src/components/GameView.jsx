@@ -1133,15 +1133,19 @@ function GameView() {
   function handlePointerUp(event) {
     const npcPointer = npcPointerRef.current;
 
+    //ひよこを摘まんでいる指かどうか確認
     if (
       npcPointer.npc &&
       npcPointer.pointerId === event.pointerId
     ) {
+
+      //タイマー初期化
       if (npcPointer.timerId !== null) {
         clearTimeout(npcPointer.timerId);
       }
 
       if (npcPointer.isDragging) {
+        //ひよこつまみ終了
         endNPCDrag(npcPointer.npc);
         cameraDragRef.current.wasDragging = true;
       }
