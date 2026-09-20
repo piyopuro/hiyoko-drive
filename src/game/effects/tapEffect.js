@@ -66,6 +66,51 @@ export function createTapSparkles(x, y, now, tapEffects) {
 
 
 //=================================
+//お家の周りにキラキラを作る係
+//=================================
+export function createHiyokoHouseSparkles(
+  x,
+  y,
+  now,
+  tapEffects
+) {
+  const sparkleCount =
+    Math.random() < 0.5 ? 5 : 6;
+
+  for (let i = 0; i < sparkleCount; i++) {
+    const angle =
+      Math.random() * Math.PI * 2;
+
+    const distance = getRandomNumber(
+      105,
+      135
+    );
+
+    const sparkleX =
+      x + Math.cos(angle) * distance;
+
+    const sparkleY =
+      y + Math.sin(angle) * distance;
+
+    tapEffects.push({
+      type: "sparkle",
+      variant: "yellow",
+
+      x: sparkleX,
+      y: sparkleY,
+
+      startTime: now,
+      duration: TapEffect.DURATION,
+
+      maxSize: getRandomNumber(
+        TapEffect.MIN_SIZE,
+        TapEffect.MAX_SIZE
+      ),
+    });
+  }
+}
+
+//=================================
 //タップエフェクト更新係
 //=================================
 export function updateTapEffects(now, tapEffects) {

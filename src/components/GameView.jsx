@@ -61,11 +61,21 @@ import {
   chooseNextNPCTarget,
   tryStartNPCFlee,
 } from "../game/npc/npc";
+//おうち関係者
+import {
+  HiyokoHouse,
+  createHiyokoHouse,
+  startHiyokoHouseDoor,
+  updateHiyokoHouseDoor,
+  drawHiyokoHouse,
+  isPointInsideHiyokoHouse,
+} from "../game/others/hiyokoHouse";
 
 //エフェクト関係者
 import {
   Effect,
   createTapSparkles,
+  createHiyokoHouseSparkles,
   updateTapEffects,
   drawTapEffects,
 } from "../game/effects/tapEffect";
@@ -259,6 +269,12 @@ function GameView() {
     bubbles: [],
     respawnTime: null,
   });
+
+  //おうち管理人
+  const hiyokoHouseRef = useRef(null);
+  if (hiyokoHouseRef.current === null) {
+    hiyokoHouseRef.current = createHiyokoHouse();
+  }
 
   //タップエフェクト管理人
   const tapEffectsRef = useRef([]);
@@ -951,7 +967,8 @@ function GameView() {
           npc,
           currentWorld.x,
           currentWorld.y,
-          performance.now()
+          performance.now(),
+          soundManagerRef.current,
         );
 
         current.isDragging = true;
@@ -1146,9 +1163,43 @@ function GameView() {
       }
 
       if (npcPointer.isDragging) {
-        //ひよこつまみ終了
-        endNPCDrag(npcPointer.npc);
-        cameraDragRef.current.wasDragging = true;
+
+        // 指を離した位置をワールド座標に変換
+        const x = event.nativeEvent.offsetX / scale;
+        const y = event.nativeEvent.offsetY / scale;
+        const worldPosition = screenToWorld(x, y, cameraRef.current);
+
+        // お家の中で離したか確認
+        const isInsideHouse = isPointInsideHiyokoHouse(
+          worldPosition.x,
+          worldPosition.y,
+          hiyokoHouseRef.current
+        );
+
+        //お家の中なら
+        if (isInsideHouse) {
+          // ひよこお片付け成功！
+          npcsRef.current = npcsRef.current.filter(
+            (item) => item !== npcPointer.npc
+          );
+          //おうちの見た目変更
+          hiyokoHouseRef.current.frame =
+            Math.floor(
+              Math.random() * 7
+            ) + 1;
+          //きらきら～
+          createHiyokoHouseSparkles(
+            hiyokoHouseRef.current.position.x,
+            hiyokoHouseRef.current.position.y,
+            performance.now(),
+            tapEffectsRef.current
+          );          //♪きらりん
+          soundManagerRef.current.play("kirari");
+        } else {
+          // 通常のひよこつまみ終了
+          endNPCDrag(npcPointer.npc);
+          cameraDragRef.current.wasDragging = true;
+        }
       }
 
       npcPointer.npc = null;
@@ -1200,6 +1251,23 @@ function GameView() {
 
     const now = performance.now();
 
+
+    //ひよこのおうちを触ったかな？
+    if (
+      isPointInsideHiyokoHouse(
+        worldPosition.x,
+        worldPosition.y,
+        hiyokoHouseRef.current
+      )
+    ) {
+      startHiyokoHouseDoor(
+        hiyokoHouseRef.current,
+        now,
+        soundManagerRef.current
+      );
+
+      return;
+    }
 
     //遊び中のシャボン玉を触ったかな？
     const tappedBubble =
@@ -1517,6 +1585,14 @@ function GameView() {
     );
   }
 
+  //お家の描画Yを決める係
+  function getHiyokoHouseDrawY(house) {
+    return (
+      house.position.y +
+      HiyokoHouse.HEIGHT / 2
+    );
+  }
+
   //のりもの描画係
   function drawVehicle(ctx, vehicle, now) {
     const master = vehicleMaster[vehicle.type];
@@ -1645,9 +1721,15 @@ function GameView() {
 
     //NPCを1つずつ描画グループに登録
     for (const npc of npcsRef.current) {
+      const isDragging =
+        npcPointerRef.current.npc === npc &&
+        npcPointerRef.current.isDragging;
+
       drawGroups.push({
         type: "npc",
-        drawY: npc.position.y,
+        drawY: isDragging
+          ? Number.POSITIVE_INFINITY
+          : npc.position.y,
         object: npc,
       });
     }
@@ -1674,6 +1756,14 @@ function GameView() {
       type: "crossing",
       drawY: getCrossingDrawY(crossing),
       object: crossing,
+    });
+
+    //おうち登録
+    const hiyokoHouse = hiyokoHouseRef.current;
+    drawGroups.push({
+      type: "hiyokoHouse",
+      drawY: getHiyokoHouseDrawY(hiyokoHouse),
+      object: hiyokoHouse,
     });
 
     //★描画Yが小さい順に並べる
@@ -1757,8 +1847,22 @@ function GameView() {
             cameraRef.current
           );
           break;
+
+        case "hiyokoHouse":
+          drawHiyokoHouse(
+            ctx,
+            imagesRef.current.hiyokoHouse01,
+            imagesRef.current.hiyokoHouseDoor01,
+            group.object,
+            cameraRef.current
+          );
+          break;
       }
     }
+
+    //----------------  ↑↑  Y基準ソートここまで  ↑↑  ------------------------
+
+    //----------------  ↓↓  前面固定  ↓↓  ------------------------------
 
     //しゃぼんだま描画係
     drawBubbles(
@@ -1887,6 +1991,11 @@ function GameView() {
     updateCameraInertia();
     updateVehicle(now, deltaTime);
     updateNPCs(now, deltaTime);
+    updateHiyokoHouseDoor(
+      hiyokoHouseRef.current,
+      now,
+      soundManagerRef.current
+    );
     updateVehicleMenu(now, vehicleMenuRef.current);
     updateCrossing(now, railwayRef.current.crossing);
     updateTrain(
@@ -1941,6 +2050,7 @@ function GameView() {
       "puddle05", "puddle06", "puddle07", "puddle08",
 
       "npcHiyoko01", "hiyokoWalk01",
+      "hiyokoHouse01", "hiyokoHouseDoor01",
 
       "menuBackground01",
       "menuTag01",
@@ -2080,7 +2190,9 @@ function GameView() {
       "train01", "crossing", "trainHorn01", "passengerAppear01",
 
       "hiyokoJump", "hiyokoWalk01",
-      "hiyokoNoru",
+      "hiyokoNoru", "hiyokotsumami",
+
+      "kirari", "doorOpen", "doorClose",
 
       "bubble", "bubblePop01", "bubblePop02", "bubblePop03",
 

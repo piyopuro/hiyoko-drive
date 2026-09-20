@@ -117,7 +117,7 @@ export function createNPC(type, startX, startY) {
 //======================================
 //ひよこを摘まむ係
 //======================================
-export function startNPCDrag(npc, worldX, worldY, now) {
+export function startNPCDrag(npc, worldX, worldY, now, soundManager) {
 
   const master = npcMaster[npc.type];
 
@@ -150,6 +150,9 @@ export function startNPCDrag(npc, worldX, worldY, now) {
   npc.target.y = npc.position.y;
   npc.action.type = null;
   npc.frame = 0;
+
+  soundManager.play("hiyokotsumami");  //ぴょい
+
 }
 
 export function updateNPCDrag(npc, worldX, worldY, now) {
