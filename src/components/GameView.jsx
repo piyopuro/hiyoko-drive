@@ -54,6 +54,7 @@ import {
   updateNPCDrag,
   endNPCDrag,
   updateNPCDragRelease,
+  drawNPC,
   drawNPCs,
   updateNPCDirection,
   updateNPCAnimation,
@@ -1491,6 +1492,31 @@ function GameView() {
   //　　　       描画
   //=================================
 
+
+  //くるまの描画Yを決める係
+  function getVehicleDrawY(vehicle) {
+    const master = vehicleMaster[vehicle.type];
+
+    return (
+      vehicle.position.y +
+      master.height / 2
+    );
+  }
+  //電車の描画Yを決める係
+  function getTrainDrawY(train) {
+    return (
+      train.y +
+      Railway.TRAIN_HEIGHT / 2
+    );
+  }
+  //踏切の描画Yを決める係
+  function getCrossingDrawY(crossing) {
+    return (
+      Railway.CROSSING_Y +
+      Railway.CROSSING_HEIGHT / 2
+    );
+  }
+
   //のりもの描画係
   function drawVehicle(ctx, vehicle, now) {
     const master = vehicleMaster[vehicle.type];
@@ -1612,65 +1638,128 @@ function GameView() {
       cameraRef.current
     );
 
-    //NPC描画係
-    drawNPCs(
-      ctx,
-      npcsRef.current,
-      now,
-      (imageKey) => imagesRef.current[imageKey],
-      cameraRef.current
-    );
 
-    //動かすのりもの描画係
-    const vehicle = vehiclesRef.current[0];
-    drawVehicle(ctx, vehicle, now);
+    //------------ここからYソート対象----------------
 
-    if (vehicle.type === "fireEngine") {
-      drawFireFightHiyokoShadow(
-        ctx,
-        vehicle,
-        now,
-        cameraRef.current
-      );
-      drawFireFightHiyoko(
-        ctx,
-        vehicle,
-        now,
-        imagesRef.current.fireFightAction01,
-        cameraRef.current
-      );
-      drawFireFightWater(
-        ctx,
-        vehicle,
-        now,
-        imagesRef.current.fireFightAction02,
-        cameraRef.current
-      );
+    const drawGroups = [];
+
+    //NPCを1つずつ描画グループに登録
+    for (const npc of npcsRef.current) {
+      drawGroups.push({
+        type: "npc",
+        drawY: npc.position.y,
+        object: npc,
+      });
     }
 
-    //電車描画係
-    drawTrain(
-      ctx,
-      imagesRef.current.train01,
-      railwayRef.current.train,
-      cameraRef.current
+    //動かすのりものを描画グループに登録
+    const vehicle = vehiclesRef.current[0];
+    drawGroups.push({
+      type: "vehicle",
+      drawY: getVehicleDrawY(vehicle),
+      object: vehicle,
+    });
+
+    //電車を描画グループに登録
+    const train = railwayRef.current.train;
+    drawGroups.push({
+      type: "train",
+      drawY: getTrainDrawY(train),
+      object: train,
+    });
+
+    //踏切を描画グループに登録
+    const crossing = railwayRef.current.crossing;
+    drawGroups.push({
+      type: "crossing",
+      drawY: getCrossingDrawY(crossing),
+      object: crossing,
+    });
+
+    //★描画Yが小さい順に並べる
+    drawGroups.sort(
+      (a, b) => a.drawY - b.drawY
     );
-    //電車の乗客描画係
-    drawTrainPassengers(
-      ctx,
-      now,
-      railwayRef.current.train,
-      trainPassengersRef.current,
-      (imageKey) => imagesRef.current[imageKey],
-      cameraRef.current
-    );
-    //踏切描画係
-    drawCrossing(
-      ctx,
-      imagesRef.current.crossing01,
-      railwayRef.current.crossing,
-      cameraRef.current
-    );
+
+    //Y座標順に描画
+    for (const group of drawGroups) {
+      switch (group.type) {
+
+        case "npc":
+          const master = npcMaster[group.object.type];
+          if (!master) {
+            break;
+          }
+
+          const image = imagesRef.current[master.imageKey];
+          drawNPC(
+            ctx,
+            group.object,
+            now,
+            image,
+            cameraRef.current
+          );
+          break;
+
+        case "vehicle":
+          drawVehicle(
+            ctx,
+            group.object,
+            now
+          );
+
+          if (group.object.type === "fireEngine") {
+            drawFireFightHiyokoShadow(
+              ctx,
+              group.object,
+              now,
+              cameraRef.current
+            );
+            drawFireFightHiyoko(
+              ctx,
+              group.object,
+              now,
+              imagesRef.current.fireFightAction01,
+              cameraRef.current
+            );
+            drawFireFightWater(
+              ctx,
+              group.object,
+              now,
+              imagesRef.current.fireFightAction02,
+              cameraRef.current
+            );
+          }
+          break;
+
+        case "train":
+          drawTrain(
+            ctx,
+            imagesRef.current.train01,
+            group.object,
+            cameraRef.current
+          );
+          drawTrainPassengers(
+            ctx,
+            now,
+            group.object,
+            trainPassengersRef.current,
+            (imageKey) => imagesRef.current[imageKey],
+            cameraRef.current
+          );
+          break;
+
+        case "crossing":
+          drawCrossing(
+            ctx,
+            imagesRef.current.crossing01,
+            group.object,
+            cameraRef.current
+          );
+          break;
+      }
+    }
+
     //しゃぼんだま描画係
     drawBubbles(
       ctx,

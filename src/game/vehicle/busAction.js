@@ -35,15 +35,15 @@ export const BusPassenger = {
     
     // 前後向き
     [Direction.FRONT]: [
-      { x: -18, y: 10 },
       { x: 10, y: 10 },
-      { x: 38, y: 10 },
+      { x: 10, y: 10 },
+      { x: 10, y: 10 },
     ],
 
     [Direction.BACK]: [
-      { x: -18, y: 10 },
       { x: 10, y: 10 },
-      { x: 38, y: 10 },
+      { x: 10, y: 10 },
+      { x: 10, y: 10 },
     ],
   },
 };
