@@ -89,12 +89,18 @@ export function createNPC(type, startX, startY) {
       isDragging: false,
       offsetX: 0,
       offsetY: 0,
+
+      liftOffsetY: 0,
+
       velocityX: 0,
       velocityY: 0,
       lastMoveTime: 0,
       wobbleStartTime: 0,
       releaseVelocityX: 0,
       releaseVelocityY: 0,
+
+      releaseFallDuration: 0,
+      releaseFallElapsed: 0,
     },
 
     waitUntil:
@@ -112,9 +118,24 @@ export function createNPC(type, startX, startY) {
 //ひよこを摘まむ係
 //======================================
 export function startNPCDrag(npc, worldX, worldY, now) {
+
+  const master = npcMaster[npc.type];
+
   npc.drag.isDragging = true;
-  npc.drag.offsetX = npc.position.x - worldX;
-  npc.drag.offsetY = npc.position.y - worldY;
+  npc.drag.offsetX = 0;
+  npc.drag.offsetY =
+    master.drawHeight +
+    NPCDragConfig.LIFT_OFFSET_Y;
+
+  npc.drag.liftOffsetY =
+    NPCDragConfig.LIFT_OFFSET_Y;
+
+  npc.position.x =
+    worldX + npc.drag.offsetX;
+
+  npc.position.y =
+    worldY + npc.drag.offsetY;
+
   npc.drag.velocityX = 0;
   npc.drag.velocityY = 0;
   npc.drag.lastMoveTime = now;
@@ -179,21 +200,60 @@ export function endNPCDrag(npc) {
   npc.drag.releaseVelocityX =
     npc.drag.velocityX *
     NPCDragConfig.RELEASE_VELOCITY_MULTIPLIER;
-  npc.drag.releaseVelocityY =　
+  npc.drag.releaseVelocityY =
     npc.drag.velocityY *
     NPCDragConfig.RELEASE_VELOCITY_MULTIPLIER;
+
+  //初速から着地までの時間を計算するよ。  
+  const initialSpeed = Math.hypot(
+    npc.drag.releaseVelocityX,
+    npc.drag.releaseVelocityY
+  );
+
+  if (initialSpeed > NPCDragConfig.RELEASE_STOP_SPEED) {
+    const stopFrames =
+      Math.log(
+        NPCDragConfig.RELEASE_STOP_SPEED / initialSpeed
+      ) /
+      Math.log(NPCDragConfig.RELEASE_FRICTION);
+
+    npc.drag.releaseFallDuration =
+      stopFrames / 60;
+  } else {
+    npc.drag.releaseFallDuration = 0;
+  }
+
+  npc.drag.releaseFallElapsed = 0;
 }
 
+
+//============================================
+//ひよこぽい係
+//============================================
 export function updateNPCDragRelease(npc, deltaTime) {
   const vx = npc.drag.releaseVelocityX;
   const vy = npc.drag.releaseVelocityY;
 
+  npc.drag.releaseFallElapsed += deltaTime;
+
+  const fallProgress = clamp(
+    npc.drag.releaseFallElapsed /
+    npc.drag.releaseFallDuration,
+    0,
+    1
+  );
+
+  npc.drag.liftOffsetY =
+    NPCDragConfig.LIFT_OFFSET_Y * (1 - fallProgress);
+
   if (
-    Math.abs(vx) < NPCDragConfig.RELEASE_STOP_SPEED &&
-    Math.abs(vy) < NPCDragConfig.RELEASE_STOP_SPEED
+    Math.hypot(vx, vy) <
+    NPCDragConfig.RELEASE_STOP_SPEED
   ) {
     npc.drag.releaseVelocityX = 0;
     npc.drag.releaseVelocityY = 0;
+    npc.drag.liftOffsetY = 0;
+
     npc.action = {
 
       type: "dragLanding",
@@ -222,7 +282,13 @@ export function updateNPCDragRelease(npc, deltaTime) {
   return true;
 }
 
+
+//========================================================
+//   ひよこぷらぷら係
+//========================================================
 export function getNPCDragTransform(npc, now) {
+
+  //ひよこつままれ中
   if (npc.drag.isDragging) {
     const elapsed = now - npc.drag.wobbleStartTime;
     const wobble = Math.sin(
@@ -230,12 +296,26 @@ export function getNPCDragTransform(npc, now) {
     );
 
     return {
-      offsetY: -NPCDragConfig.LIFT_OFFSET_Y,
+      offsetY: -npc.drag.liftOffsetY,
       rotation: wobble * NPCDragConfig.WOBBLE_ANGLE,
       scaleY: 1,
     };
   }
 
+  //ひよこが投げられ中
+  if (
+    npc.drag.releaseFallDuration > 0 &&
+    npc.drag.releaseFallElapsed <
+    npc.drag.releaseFallDuration
+  ) {
+    return {
+      offsetY: -npc.drag.liftOffsetY,
+      rotation: 0,
+      scaleY: 1,
+    };
+  }
+
+  //ひよこ着地
   if (npc.action.type === "dragLanding") {
     const elapsed = now - npc.action.startTime;
     const progress = Math.min(
@@ -438,7 +518,15 @@ export function drawNPC(ctx, npc, now, image, camera) {
     dragTransform.offsetY
   );
 
-  ctx.rotate(dragTransform.rotation);
+  //ドラッグ中は頭基準でぷらぷら
+  if (npc.drag.isDragging) {
+    ctx.translate(0, -master.drawHeight);
+    ctx.rotate(dragTransform.rotation);
+    ctx.translate(0, master.drawHeight);
+  } else {
+    ctx.rotate(dragTransform.rotation);
+  }
+
 
   //足元を基準に縦方向へ変形
   ctx.scale(

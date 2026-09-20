@@ -29,7 +29,7 @@ export const NPCBehaviorType = {
 };
 
 export const NPCDragConfig = {
-  HOLD_TIME: 350,
+  HOLD_TIME: 150,
   HIT_RADIUS_PADDING: 14,
   LIFT_OFFSET_Y: 24,
   WOBBLE_ANGLE: 0.08,
@@ -38,7 +38,7 @@ export const NPCDragConfig = {
   RELEASE_FRICTION: 0.82,
   RELEASE_STOP_SPEED: 8,
   RELEASE_LANDING_DURATION: 230,
-  MAX_RELEASE_SPEED: 800,
+  MAX_RELEASE_SPEED: 1600,
 };
 
 export const NPCFleeConfig = {
