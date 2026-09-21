@@ -28,8 +28,10 @@ export const HiyokoHouse = {
 
     DOOR_FRAME_INTERVAL: 80,
 
-    //お家がぽよんする時間
+    //ぽよん設定
     POUNCE_DURATION: 300,
+    POUNCE_SCALE_X: 1.12,
+    POUNCE_SCALE_Y: 1.18,
 };
 
 //========================================
@@ -106,15 +108,9 @@ export function createHiyokoHouse() {
 
     return {
 
-        //お家の位置
-        position: {
-            x,
-            y,
-        },
-
-        //お家画像のコマ
-        //最初は必ず0番
-        frame: 0,
+        position: { x, y, },        //お家の位置
+        frame: 0,        //お家画像のコマ、最初は必ず0番
+        hiyokoCount: 0,        //ひよこを入れた数
 
         //ドアアニメーション
         door: {
@@ -212,6 +208,64 @@ export function isPointInsideHiyokoHouse(x, y, house) {
     );
 }
 
+//========================================
+// ぽよん開始係
+//========================================
+export function startHiyokoHousePounce(
+    house,
+    now
+) {
+    house.effect.type = "pounce";
+    house.effect.startTime = now;
+    house.effect.duration =
+        HiyokoHouse.POUNCE_DURATION;
+}
+
+
+//========================================
+// ぽよん計算係
+//========================================
+export function getHiyokoHouseScale(house, now) {
+    if (house.effect.type !== "pounce") {
+        return {
+            x: 1,
+            y: 1,
+        };
+    }
+
+    const elapsed =
+        now - house.effect.startTime;
+
+    const progress = Math.min(
+        elapsed / house.effect.duration,
+        1
+    );
+
+    if (progress >= 1) {
+        house.effect.type = null;
+
+        return {
+            x: 1,
+            y: 1,
+        };
+    }
+
+    const amount =
+        Math.sin(progress * Math.PI);
+
+    return {
+        x:
+            1 +
+            (HiyokoHouse.POUNCE_SCALE_X - 1) *
+            amount,
+
+        y:
+            1 +
+            (HiyokoHouse.POUNCE_SCALE_Y - 1) *
+            amount,
+    };
+}
+
 //==============================================
 //おうち描画係
 //==============================================
@@ -220,13 +274,13 @@ export function drawHiyokoHouse(
     image,
     doorImage,
     house,
-    camera
+    camera,
+    now
 ) {
     const frameWidth = HiyokoHouse.WIDTH;
     const frameHeight = HiyokoHouse.HEIGHT;
 
-    const sx =
-        house.frame * frameWidth;
+    const sx = house.frame * frameWidth;
 
     const screenPosition = worldToScreen(
         house.position.x,
@@ -243,6 +297,21 @@ export function drawHiyokoHouse(
         20
     );
 
+    const scale = getHiyokoHouseScale(house, now);
+
+    ctx.save();
+
+    //足元アンカー
+    ctx.translate(
+        screenPosition.x,
+        screenPosition.y + frameHeight / 2
+    );
+
+    ctx.scale(
+        scale.x,
+        scale.y
+    );
+
     //おうち
     ctx.drawImage(
         image,
@@ -251,9 +320,8 @@ export function drawHiyokoHouse(
         0,
         frameWidth,
         frameHeight,
-
-        screenPosition.x - frameWidth / 2,
-        screenPosition.y - frameHeight / 2,
+        -frameWidth / 2,
+        -frameHeight,
         frameWidth,
         frameHeight
     );
@@ -264,8 +332,7 @@ export function drawHiyokoHouse(
         house.door.frameIndex
         ];
 
-    const doorSx =
-        doorFrame * frameWidth;
+    const doorSx = doorFrame * frameWidth;
 
     ctx.drawImage(
         doorImage,
@@ -273,9 +340,11 @@ export function drawHiyokoHouse(
         0,
         frameWidth,
         frameHeight,
-        screenPosition.x - frameWidth / 2,
-        screenPosition.y - frameHeight / 2,
+        -frameWidth / 2,
+        -frameHeight,
         frameWidth,
         frameHeight
     );
+
+    ctx.restore();
 }

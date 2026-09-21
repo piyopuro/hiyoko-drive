@@ -69,6 +69,7 @@ import {
   updateHiyokoHouseDoor,
   drawHiyokoHouse,
   isPointInsideHiyokoHouse,
+  startHiyokoHousePounce,
 } from "../game/others/hiyokoHouse";
 
 //エフェクト関係者
@@ -1178,23 +1179,41 @@ function GameView() {
 
         //お家の中なら
         if (isInsideHouse) {
-          // ひよこお片付け成功！
+
+          // ひよこお片付け成功！       
+          const now = performance.now();
+
+          //おかたづけ
           npcsRef.current = npcsRef.current.filter(
             (item) => item !== npcPointer.npc
           );
+
+          //あたらしいいのち
+          const newNPC = createNPC("hiyoko");
+          if (newNPC) {
+            npcsRef.current.push(newNPC);
+          }
+
+          //ぽよん
+          startHiyokoHousePounce(
+            hiyokoHouseRef.current,
+            now
+          );
+          // お家にひよこを1羽追加
+          hiyokoHouseRef.current.hiyokoCount++;
           //おうちの見た目変更
           hiyokoHouseRef.current.frame =
-            Math.floor(
-              Math.random() * 7
-            ) + 1;
-          //きらきら～
+            Math.floor(Math.random() * 7) + 1;
+          //きらきらエフェクト
           createHiyokoHouseSparkles(
             hiyokoHouseRef.current.position.x,
             hiyokoHouseRef.current.position.y,
-            performance.now(),
+            now,
             tapEffectsRef.current
-          );          //♪きらりん
+          );
+          //♪きらりん
           soundManagerRef.current.play("kirari");
+
         } else {
           // 通常のひよこつまみ終了
           endNPCDrag(npcPointer.npc);
@@ -1260,12 +1279,20 @@ function GameView() {
         hiyokoHouseRef.current
       )
     ) {
-      startHiyokoHouseDoor(
-        hiyokoHouseRef.current,
-        now,
-        soundManagerRef.current
-      );
+      //ひよこがお家にいるかな？
+      if (
+        hiyokoHouseRef.current.hiyokoCount > 0
+      ) {
+        startHiyokoHouseDoor(
+          hiyokoHouseRef.current,
+          now,
+          soundManagerRef.current
+        );
 
+      } else {
+        // ノック音だけ
+        soundManagerRef.current.play("doorKnock");
+      }
       return;
     }
 
@@ -1854,7 +1881,8 @@ function GameView() {
             imagesRef.current.hiyokoHouse01,
             imagesRef.current.hiyokoHouseDoor01,
             group.object,
-            cameraRef.current
+            cameraRef.current,
+            now
           );
           break;
       }
@@ -2192,7 +2220,7 @@ function GameView() {
       "hiyokoJump", "hiyokoWalk01",
       "hiyokoNoru", "hiyokotsumami",
 
-      "kirari", "doorOpen", "doorClose",
+      "kirari", "doorKnock", "doorOpen", "doorClose",
 
       "bubble", "bubblePop01", "bubblePop02", "bubblePop03",
 
