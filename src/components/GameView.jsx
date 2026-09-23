@@ -77,9 +77,10 @@ import {
   Effect,
   createTapSparkles,
   createHiyokoHouseSparkles,
-  updateTapEffects,
-  drawTapEffects,
-} from "../game/effects/tapEffect";
+  createStarSparkles,
+  updateVisualEffects,
+  drawVisualEffects,
+} from "../game/effects/effect";
 
 //電車関係者
 import {
@@ -133,14 +134,27 @@ import {
   updateBubbles,
   drawBubbles,
 } from "../game/others/bubbleGame";
+//たまご関係者
+import {
+  EggGame,
+  createMapEgg,
+  drawMapEgg,
+  updateMapEgg,
+  isMapEggHit,
+  createEggGame,
+  drawEggEvent,
+  isEggEventPanelHit,
+  isEggHit,
+  crackEgg,
+  updateEggEffectParticles,
+  finishEggEvent,
+} from "../game/others/eggGame";
 //インク池関係者
 import {
   createRandomColorPuddles,
   drawColorPuddle,
   updateColorPuddleCollision,
 } from "../game/others/colorPuddle";
-
-const CAMERA_EDGE_BOUNCE = 0.3;
 
 //ゲームの中身を描いてるところだよ。
 function GameView() {
@@ -271,14 +285,19 @@ function GameView() {
     respawnTime: null,
   });
 
+  //たまご管理人
+  const eggGameRef = useRef(
+    createEggGame()
+  );
+
   //おうち管理人
   const hiyokoHouseRef = useRef(null);
   if (hiyokoHouseRef.current === null) {
     hiyokoHouseRef.current = createHiyokoHouse();
   }
 
-  //タップエフェクト管理人
-  const tapEffectsRef = useRef([]);
+  //いろんなエフェクト管理人
+  const visualEffectsRef = useRef([]);
 
 
 
@@ -1209,7 +1228,7 @@ function GameView() {
             hiyokoHouseRef.current.position.x,
             hiyokoHouseRef.current.position.y,
             now,
-            tapEffectsRef.current
+            visualEffectsRef.current
           );
           //♪きらりん
           soundManagerRef.current.play("kirari");
@@ -1257,7 +1276,7 @@ function GameView() {
     }
 
 
-    //座標チェック（カメラ座標）
+    //座標チェック（スクリーン座標）
     const x = event.nativeEvent.offsetX / scale;
     const y = event.nativeEvent.offsetY / scale;
 
@@ -1270,6 +1289,115 @@ function GameView() {
 
     const now = performance.now();
 
+
+    //たまごイベント中？
+    const eggEvent = eggGameRef.current.event;
+    if (eggEvent.active) {
+
+      //たまごの割れ具合をチェック
+      if (eggEvent.eggFrame === 4) {
+
+        //イベント完了処理
+        //たまご座標取得
+        const eggX = eggEvent.eggX;
+        const eggY = eggEvent.eggY;
+
+        eggGameRef.current.mapEgg = null;
+
+        const newNPC = createNPC("hiyoko", eggX, eggY);
+        if (newNPC) {
+          npcsRef.current.push(newNPC);
+        }
+
+        createStarSparkles(
+          eggX,
+          eggY - 50,    //たまご座標は足元基準なので　-50で中心へ
+          now,
+          visualEffectsRef.current
+        );
+
+        soundManagerRef.current.play("hiyokoNoru"); //♪ぴよ
+        finishEggEvent(eggEvent);
+
+        return;
+      }
+
+      const isPanelHit = isEggEventPanelHit(
+        x,
+        y,
+        Screen.WIDTH,
+        Screen.HEIGHT
+      );
+
+      //UIの外を触った？
+      if (!isPanelHit) {
+        eggEvent.active = false;
+        eggEvent.startTime = null;
+
+        return;
+      }
+
+      //いべんとたまごをタップした？
+      const isEggTapped = isEggHit(
+        x,
+        y,
+        Screen.WIDTH,
+        Screen.HEIGHT
+      );
+
+      if (!isEggTapped) {
+        return;
+      }
+
+      crackEgg(
+        eggEvent,
+        x,
+        y,
+        now,
+        eggEvent.effectParticles,
+        imagesRef.current.eggEventEffect01,
+        Screen.WIDTH / 2,
+        Screen.HEIGHT / 2
+      );
+
+      if (eggEvent.eggFrame > 0 && eggEvent.eggFrame < 4) {
+        //♪ﾊﾟｷｯ
+        soundManagerRef.current.play("eggCrack");
+      } else {
+        soundManagerRef.current.play("hiyokoUmareta01");
+        soundManagerRef.current.play("hiyokoUmareta02");
+      }
+
+      return;
+
+
+    }
+
+    //マップのたまごを触ったかな？
+    const mapEgg = eggGameRef.current.mapEgg;
+    if (
+      isMapEggHit(
+        worldPosition.x,
+        worldPosition.y,
+        mapEgg,
+        imagesRef.current.egg01
+      )
+    ) {
+      eggGameRef.current.event.active = true;
+      eggGameRef.current.event.startTime = performance.now();
+      eggGameRef.current.event.eggX = eggGameRef.current.mapEgg.x;
+      eggGameRef.current.event.eggY = eggGameRef.current.mapEgg.y;
+      eggGameRef.current.event.rotation = EggGame.EVENT_APPEAR_START_ROTATION;
+      eggGameRef.current.event.offsetY = EggGame.EVENT_APPEAR_START_OFFSET_Y;
+      eggGameRef.current.event.eggDropStartTime = null;
+      eggGameRef.current.event.eggFrame = 0;
+
+      soundManagerRef.current.play("eggEventStart");
+      soundManagerRef.current.play("eggSet");
+
+      console.log("卵イベント開始！");
+      return;
+    }
 
     //ひよこのおうちを触ったかな？
     if (
@@ -1368,7 +1496,7 @@ function GameView() {
           worldPosition.x,
           worldPosition.y,
           now,
-          tapEffectsRef.current);  //きらきら～
+          visualEffectsRef.current);  //きらきら～
         return;
 
       }
@@ -1407,8 +1535,8 @@ function GameView() {
     const menu = vehicleMenuRef.current;
 
     const menuIsVisible =
-      menu.isOpen || menu.progress > 0; //メニュー見えてるかな？
-
+      menu.isOpen || menu.progress > 0;
+    //メニュー見えてるかな？
     if (menuIsVisible) {
       const menuVehicles = getVehicleMenuVehicles(vehicleMenuRef.current);
 
@@ -1464,7 +1592,7 @@ function GameView() {
               hiyokoPosition.x,
               hiyokoPosition.y,
               now,
-              tapEffectsRef.current
+              visualEffectsRef.current
             );
           }
 
@@ -1793,6 +1921,16 @@ function GameView() {
       object: hiyokoHouse,
     });
 
+    //まっぷたまごを描画グループに登録
+    const egg = eggGameRef.current.mapEgg;
+    if (egg) {
+      drawGroups.push({
+        type: "egg",
+        drawY: egg.y,
+        object: egg,
+      });
+    }
+
     //★描画Yが小さい順に並べる
     drawGroups.sort(
       (a, b) => a.drawY - b.drawY
@@ -1800,6 +1938,7 @@ function GameView() {
 
     //Y座標順に描画
     for (const group of drawGroups) {
+
       switch (group.type) {
 
         case "npc":
@@ -1885,6 +2024,15 @@ function GameView() {
             now
           );
           break;
+
+        case "egg":
+          drawMapEgg(
+            ctx,
+            imagesRef.current.egg01,
+            group.object,
+            cameraRef.current
+          );
+          break;
       }
     }
 
@@ -1901,12 +2049,17 @@ function GameView() {
       imagesRef.current.bubblePop
     );
     //タップエフェクト描画係
-    drawTapEffects(
+    drawVisualEffects(
       ctx,
       now,
-      tapEffectsRef.current,
+      visualEffectsRef.current,
       imagesRef.current.tEffect01,
-      cameraRef.current
+      cameraRef.current,
+      {
+        starEffect01: imagesRef.current.starEffect01,
+        starEffect02: imagesRef.current.starEffect02,
+        starEffect03: imagesRef.current.starEffect03,
+      }
     );
     //メニュー描画係
     drawVehicleMenu(
@@ -1923,7 +2076,19 @@ function GameView() {
       imagesRef.current.menuTag01
 
     );
+    drawEggEvent(
+      ctx,
+      imagesRef.current.eggEvent01,
+      imagesRef.current.eggEvent02,
+      imagesRef.current.eggEventEffect02,
+      eggGameRef.current.event,
+      Screen.WIDTH,
+      Screen.HEIGHT,
+      now
+    );
+
   }
+
 
 
   //===============================
@@ -2016,30 +2181,43 @@ function GameView() {
   //　　　    現場監督
   //=================================
   function update(now, deltaTime) {
-    updateCameraInertia();
-    updateVehicle(now, deltaTime);
-    updateNPCs(now, deltaTime);
-    updateHiyokoHouseDoor(
-      hiyokoHouseRef.current,
-      now,
-      soundManagerRef.current
-    );
-    updateVehicleMenu(now, vehicleMenuRef.current);
-    updateCrossing(now, railwayRef.current.crossing);
-    updateTrain(
-      now,
-      deltaTime,
-      railwayRef.current.train,
-      railwayRef.current.crossing,
-      soundManagerRef.current,
-      trainPassengersRef.current
-    );
-    updateTapEffects(now, tapEffectsRef.current);
-    updateBubbles(
-      now,
-      deltaTime,
-      bubbleGameRef.current
-    );
+
+    const eggEvent = eggGameRef.current.event;
+
+    //たまごイベント中？
+    if (eggEvent.active) {
+      eggEvent.effectParticles =
+        updateEggEffectParticles(
+          now,
+          deltaTime,
+          eggEvent.effectParticles
+        );
+    }
+    //通常時
+    else {
+      updateCameraInertia();
+      updateVehicle(now, deltaTime);
+      updateNPCs(now, deltaTime);
+      updateHiyokoHouseDoor(
+        hiyokoHouseRef.current,
+        now,
+        soundManagerRef.current
+      );
+      updateVehicleMenu(now, vehicleMenuRef.current);
+      updateCrossing(now, railwayRef.current.crossing);
+      updateTrain(
+        now,
+        deltaTime,
+        railwayRef.current.train,
+        railwayRef.current.crossing,
+        soundManagerRef.current,
+        trainPassengersRef.current
+      );
+      updateVisualEffects(now, deltaTime, visualEffectsRef.current);
+      updateBubbles(now, deltaTime, bubbleGameRef.current);
+      updateMapEgg(eggGameRef.current.mapEgg, now);
+
+    }
 
     const ctx = ctxRef.current;
 
@@ -2071,13 +2249,17 @@ function GameView() {
 
       "train01",
       "crossing01",
+
       "tEffect01",
+      "starEffect01", "starEffect02", "starEffect03",
+
+
       "tHiyoko", "tCat01", "tCat02", "tCat03",
 
       "puddle01", "puddle02", "puddle03", "puddle04",
       "puddle05", "puddle06", "puddle07", "puddle08",
 
-      "npcHiyoko01", "hiyokoWalk01",
+      "npcHiyoko01",
       "hiyokoHouse01", "hiyokoHouseDoor01",
 
       "menuBackground01",
@@ -2086,6 +2268,10 @@ function GameView() {
 
       "railway01",
       "bubble", "bubblePop",
+
+      "egg01",
+      "eggEvent01", "eggEvent02",
+      "eggEventEffect01", "eggEventEffect02",
     ];
 
     //読み込み進捗君。全部揃ったら描いてくれる。
@@ -2096,6 +2282,7 @@ function GameView() {
 
       if (loaded === imageNames.length) {
         createMapBubble(bubbleGameRef.current);
+        eggGameRef.current.mapEgg = createMapEgg(1200, 700);
         draw(ctx, performance.now());
       }
     }
@@ -2112,6 +2299,40 @@ function GameView() {
 
   }, []);
 
+  //音読み込み部署
+  useEffect(() => {
+    const soundManager = soundManagerRef.current;
+
+    const soundNames = [
+      "select01",
+      "menuOpen01",
+
+      "busHorn", "ambulanceSiren",
+      "fireEngineSiren", "fireFightAction01", "fireFightAction02",
+      "policeCarSiren", "policeCarAction01",
+      "train01", "crossing", "trainHorn01", "passengerAppear01",
+
+      "hiyokoJump", "hiyokoWalk01",
+      "hiyokoNoru", "hiyokotsumami",
+
+      "hiyokoUmareta01", "hiyokoUmareta02", "eggEventStart", "eggCrack",
+
+      "kirari", "doorKnock", "doorOpen", "doorClose",
+
+      "bubble", "bubblePop01", "bubblePop02", "bubblePop03",
+
+      "eggEventStart", "eggSet", "eggCrack", "hiyokoUmareta01", "hiyokoUmareta02",
+
+    ];
+
+    Promise.all(soundNames.map((name) => soundManager.load(name, `${import.meta.env.BASE_URL}sounds/${name}.mp3`)))
+      .then(() => {
+        console.log("効果音の読み込み完了");
+      })
+      .catch((error) => {
+        console.error("効果音の読み込みに失敗しました", error);
+      });
+  }, []);
 
 
   //ウインドウサイズ監視君。変更があったらゲーム画面の大きさを変えてくれるところ。
@@ -2204,36 +2425,6 @@ function GameView() {
     };
   }, []);
 
-  //音読み込み部署
-  useEffect(() => {
-    const soundManager = soundManagerRef.current;
-
-    const soundNames = [
-      "select01",
-      "menuOpen01",
-
-      "busHorn", "ambulanceSiren",
-      "fireEngineSiren", "fireFightAction01", "fireFightAction02",
-      "policeCarSiren", "policeCarAction01",
-      "train01", "crossing", "trainHorn01", "passengerAppear01",
-
-      "hiyokoJump", "hiyokoWalk01",
-      "hiyokoNoru", "hiyokotsumami",
-
-      "kirari", "doorKnock", "doorOpen", "doorClose",
-
-      "bubble", "bubblePop01", "bubblePop02", "bubblePop03",
-
-    ];
-
-    Promise.all(soundNames.map((name) => soundManager.load(name, `${import.meta.env.BASE_URL}sounds/${name}.mp3`)))
-      .then(() => {
-        console.log("効果音の読み込み完了");
-      })
-      .catch((error) => {
-        console.error("効果音の読み込みに失敗しました", error);
-      });
-  }, []);
 
   //今まで計算したやつ、ここで出てくるよ～。
   return (

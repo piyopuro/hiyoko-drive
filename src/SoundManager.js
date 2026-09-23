@@ -2,17 +2,17 @@ class SoundManager {
   constructor() {
     this.audioContext = null;
     this.buffers = {};
-		this.arrayBuffers = {};
-		this.loadingPromises = {};
+    this.arrayBuffers = {};
+    this.loadingPromises = {};
   }
 
   getAudioContext() {
     if (!this.audioContext) {
       const AudioContextClass =
         window.AudioContext || window.webkitAudioContext;
-        
-    	if (!AudioContextClass) {
-      	throw new Error("Web Audio APIが利用できません");
+
+      if (!AudioContextClass) {
+        throw new Error("Web Audio APIが利用できません");
       }
 
       this.audioContext = new AudioContextClass();
@@ -21,26 +21,26 @@ class SoundManager {
     return this.audioContext;
   }
 
-	async load(name, url) {
-   　const loadingPromise = async () => {
+  async load(name, url) {
+    const loadingPromise = async () => {
 
-			const response = await fetch(url);
+      const response = await fetch(url);
 
-			if (!response.ok) {
-				throw new Error(
-					`音声ファイルの読み込みに失敗しました: ${url}`
-				);
-			}
+      if (!response.ok) {
+        throw new Error(
+          `音声ファイルの読み込みに失敗しました: ${url}`
+        );
+      }
 
-			this.arrayBuffers[name] = await response.arrayBuffer();
+      this.arrayBuffers[name] = await response.arrayBuffer();
 
       // AudioContextがすでに作られている場合は、その場でデコード
       if (this.audioContext) {
         await this.decode(name);
       }
-    };	
+    };
 
-		this.loadingPromises[name] = loadingPromise();
+    this.loadingPromises[name] = loadingPromise();
 
     try {
       await this.loadingPromises[name];
@@ -49,7 +49,7 @@ class SoundManager {
     }
   }
 
-	async decode(name) {
+  async decode(name) {
     if (this.buffers[name]) {
       return;
     }
@@ -76,7 +76,7 @@ class SoundManager {
       await audioContext.resume();
     }
 
-		// fetch待ち
+    // fetch待ち
     await Promise.all(Object.values(this.loadingPromises));
 
     // 取得済みの音をまとめてデコード
@@ -89,21 +89,21 @@ class SoundManager {
   }
 
 
-	play(name) {
-  const audioBuffer = this.buffers[name];
+  play(name) {
+    const audioBuffer = this.buffers[name];
 
-  if (!audioBuffer) {
-    console.warn(`音声が読み込まれていません: ${name}`);
-    return;
+    if (!audioBuffer) {
+      console.warn(`音声が読み込まれていません: ${name}`);
+      return;
+    }
+
+    const audioContext = this.getAudioContext();
+    const source = audioContext.createBufferSource();
+
+    source.buffer = audioBuffer;
+    source.connect(audioContext.destination);
+    source.start();
   }
-
-  const audioContext = this.getAudioContext();
-  const source = audioContext.createBufferSource();
-
-  source.buffer = audioBuffer;
-  source.connect(audioContext.destination);
-  source.start();
-	}
 }
 
 export default SoundManager;
