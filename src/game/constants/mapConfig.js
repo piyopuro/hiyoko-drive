@@ -7,5 +7,5 @@ export const Map = {
 //画面の情報
 export const Screen = {
   WIDTH: 1920,
-  HEIGHT: 1080,
+  HEIGHT: 1440,
 };

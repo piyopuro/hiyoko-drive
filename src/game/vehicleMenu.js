@@ -11,8 +11,8 @@ export const VehicleMenu = {
   PANEL_WIDTH: 1740,
   PANEL_HEIGHT: 980,
 
-  PANEL_Y: 50,
-  TAB_Y: 120,
+  PANEL_Y: 230,
+  TAB_Y: 300,
 
   TAB_OVERHANG: 150,   //付箋はみ出し具合
 

@@ -169,7 +169,7 @@ function GameView() {
   //画面拡縮率計算君
   const scale = Math.min(
     screenSize.width / 1920,
-    screenSize.height / 1080
+    screenSize.height / 1440
   );
   const canvasRef = useRef(null);
   const ctxRef = useRef(null);
@@ -1843,7 +1843,7 @@ function GameView() {
     const background = imagesRef.current.background02;
 
     //一回画面をきれいにする。
-    ctx.clearRect(0, 0, 1920, 1080);
+    ctx.clearRect(0, 0, 1920, 1440);
 
     //背景描いてる部署
     const camera = cameraRef.current;
@@ -2450,10 +2450,10 @@ function GameView() {
           className="gameCanvas"
           ref={canvasRef}
           width={1920}
-          height={1080}
+          height={1440}
           style={{
             width: `${1920 * scale}px`,
-            height: `${1080 * scale}px`
+            height: `${1440 * scale}px`
           }}
           onClick={handleClick}
           onPointerDown={handlePointerDown}
