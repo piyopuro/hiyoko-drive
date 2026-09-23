@@ -1,5 +1,11 @@
 import { worldToScreen, drawShadow } from "../utils/draw";
 import { getRandomNumber } from "../utils/math";
+import { Map } from "../constants/mapConfig";
+import {
+    Railway,
+    railwayMap,
+} from "../constants/railwayConfig";
+
 
 // ================================
 // たまごゲーム
@@ -53,9 +59,65 @@ export const EggGame = {
     EGG_BOTTOM_OFFSET_Y: 30,
 };
 
+//========================================
+// 線路と重なるかチェック
+//========================================
+export function isEggOverlappingRailway(x, y, image) {
+    const eggWidth = image.width;
+    const eggHeight = image.height;
+    const eggLeft = x - eggWidth / 2;
+    const eggRight = x + eggWidth / 2;
+    const eggTop = y - eggHeight;
+    const eggBottom = y;
+
+    return railwayMap.some((rail) => {
+        const railLeft = rail.x;
+        const railRight = rail.x + Railway.RAILWAY_WIDTH;
+        const railTop = rail.y;
+        const railBottom = rail.y + Railway.RAILWAY_HEIGHT;
+
+        return (
+            eggLeft < railRight &&
+            eggRight > railLeft &&
+            eggTop < railBottom &&
+            eggBottom > railTop
+        );
+    });
+}
+
+//========================================
+// 他の卵と重なるかチェック
+//========================================
+
+function isEggOverlappingOtherEgg(
+    x,
+    y,
+    image,
+    eggs
+) {
+    const eggLeft = x - image.width / 2;
+    const eggRight = x + image.width / 2;
+    const eggTop = y - image.height;
+    const eggBottom = y;
+
+    return eggs.some((egg) => {
+        const otherLeft = egg.x - image.width / 2;
+        const otherRight = egg.x + image.width / 2;
+        const otherTop = egg.y - image.height;
+        const otherBottom = egg.y;
+
+        return (
+            eggLeft < otherRight &&
+            eggRight > otherLeft &&
+            eggTop < otherBottom &&
+            eggBottom > otherTop
+        );
+    });
+}
+
 
 // ================================
-// マップのたまごを作る係
+// マップのたまごを作る係(座標指定)
 // ================================
 export function createMapEgg(x, y) {
     return {
@@ -68,60 +130,94 @@ export function createMapEgg(x, y) {
     };
 }
 
+
+//========================================
+// ランダムな場所に卵を作る
+//========================================
+export function createRandomMapEgg(eggs, image) {
+    let x;
+    let y;
+
+    const halfWidth = image.width / 2;
+    const eggHeight = image.height;
+
+    // 条件を満たす場所が見つかるまで探す
+    do {
+        x = getRandomNumber(
+            halfWidth,
+            Map.WIDTH - halfWidth
+        );
+
+        y = getRandomNumber(
+            eggHeight,
+            Map.HEIGHT
+        );
+
+    } while (
+        isEggOverlappingRailway(x, y, image) ||
+        isEggOverlappingOtherEgg(x, y, image, eggs)
+    );
+
+    return createMapEgg(x, y);
+}
+
+
 // ================================
 // ぷくっ係
 // ================================
-export function updateMapEgg(egg, now) {
-    if (!egg) {
-        return;
-    }
+export function updateMapEggs(eggs, now) {
+    for (const egg of eggs) {
+        if (!egg) {
+            continue;
+        }
 
-    // まだ次の「ぷくっ」までの時間を決めていない？
-    if (egg.nextPuffTime === 0) {
-        egg.nextPuffTime =
-            now +
-            getRandomNumber(
-                EggGame.PUFF_INTERVAL_MIN,
-                EggGame.PUFF_INTERVAL_MAX
-            );
+        // まだ次の「ぷくっ」までの時間を決めていない？
+        if (egg.nextPuffTime === 0) {
+            egg.nextPuffTime =
+                now +
+                getRandomNumber(
+                    EggGame.PUFF_INTERVAL_MIN,
+                    EggGame.PUFF_INTERVAL_MAX
+                );
 
-        return;
-    }
-
-    // 「ぷくっ」開始前
-    if (egg.puffStartTime === null) {
-        if (now < egg.nextPuffTime) {
             return;
         }
 
-        // 「ぷくっ」開始！
-        egg.puffStartTime = now;
-    }
+        // 「ぷくっ」開始前
+        if (egg.puffStartTime === null) {
+            if (now < egg.nextPuffTime) {
+                return;
+            }
 
-    // 「ぷくっ」開始からの経過時間
-    const elapsed = now - egg.puffStartTime;
+            // 「ぷくっ」開始！
+            egg.puffStartTime = now;
+        }
 
-    const progress = Math.min(
-        elapsed / EggGame.PUFF_DURATION,
-        1
-    );
+        // 「ぷくっ」開始からの経過時間
+        const elapsed = now - egg.puffStartTime;
 
-    // 0 → 1 → 0 と滑らかに変化
-    const puffAmount = 4 * progress * (1 - progress);
+        const progress = Math.min(
+            elapsed / EggGame.PUFF_DURATION,
+            1
+        );
 
-    egg.scale = 1 + puffAmount * (EggGame.PUFF_SCALE - 1);
+        // 0 → 1 → 0 と滑らかに変化
+        const puffAmount = 4 * progress * (1 - progress);
 
-    // アニメーション終了
-    if (progress >= 1) {
-        egg.scale = 1;
-        egg.puffStartTime = null;
+        egg.scale = 1 + puffAmount * (EggGame.PUFF_SCALE - 1);
 
-        egg.nextPuffTime =
-            now +
-            getRandomNumber(
-                EggGame.PUFF_INTERVAL_MIN,
-                EggGame.PUFF_INTERVAL_MAX
-            );
+        // アニメーション終了
+        if (progress >= 1) {
+            egg.scale = 1;
+            egg.puffStartTime = null;
+
+            egg.nextPuffTime =
+                now +
+                getRandomNumber(
+                    EggGame.PUFF_INTERVAL_MIN,
+                    EggGame.PUFF_INTERVAL_MAX
+                );
+        }
     }
 }
 
@@ -169,7 +265,7 @@ export function drawMapEgg(ctx, image, egg, camera) {
 // ================================
 export function createEggGame() {
     return {
-        mapEgg: null,
+        mapEggs: [],
 
         event: {
             active: false,

@@ -137,9 +137,9 @@ import {
 //たまご関係者
 import {
   EggGame,
-  createMapEgg,
+  createRandomMapEgg,
   drawMapEgg,
-  updateMapEgg,
+  updateMapEggs,
   isMapEggHit,
   createEggGame,
   drawEggEvent,
@@ -1208,11 +1208,12 @@ function GameView() {
           );
 
           //あたらしいいのち
-          const newNPC = createNPC("hiyoko");
-          if (newNPC) {
-            npcsRef.current.push(newNPC);
-          }
-
+          eggGameRef.current.mapEggs.push(
+            createRandomMapEgg(
+              eggGameRef.current.mapEggs,
+              imagesRef.current.egg01
+            )
+          );
           //ぽよん
           startHiyokoHousePounce(
             hiyokoHouseRef.current,
@@ -1302,7 +1303,13 @@ function GameView() {
         const eggX = eggEvent.eggX;
         const eggY = eggEvent.eggY;
 
-        eggGameRef.current.mapEgg = null;
+        //条件に合うたまごは残す
+        eggGameRef.current.mapEggs =
+          eggGameRef.current.mapEggs.filter(
+            (egg) =>
+              egg.x !== eggGameRef.current.event.eggX ||
+              egg.y !== eggGameRef.current.event.eggY
+          );
 
         const newNPC = createNPC("hiyoko", eggX, eggY);
         if (newNPC) {
@@ -1374,19 +1381,22 @@ function GameView() {
     }
 
     //マップのたまごを触ったかな？
-    const mapEgg = eggGameRef.current.mapEgg;
-    if (
-      isMapEggHit(
-        worldPosition.x,
-        worldPosition.y,
-        mapEgg,
-        imagesRef.current.egg01
-      )
-    ) {
+    //マップのたまごを触ったかな？
+    const mapEgg = eggGameRef.current.mapEggs.find(
+      (egg) =>
+        isMapEggHit(
+          worldPosition.x,
+          worldPosition.y,
+          egg,
+          imagesRef.current.egg01
+        )
+    );
+
+    if (mapEgg) {
       eggGameRef.current.event.active = true;
       eggGameRef.current.event.startTime = performance.now();
-      eggGameRef.current.event.eggX = eggGameRef.current.mapEgg.x;
-      eggGameRef.current.event.eggY = eggGameRef.current.mapEgg.y;
+      eggGameRef.current.event.eggX = mapEgg.x;
+      eggGameRef.current.event.eggY = mapEgg.y;
       eggGameRef.current.event.rotation = EggGame.EVENT_APPEAR_START_ROTATION;
       eggGameRef.current.event.offsetY = EggGame.EVENT_APPEAR_START_OFFSET_Y;
       eggGameRef.current.event.eggDropStartTime = null;
@@ -1922,8 +1932,7 @@ function GameView() {
     });
 
     //まっぷたまごを描画グループに登録
-    const egg = eggGameRef.current.mapEgg;
-    if (egg) {
+    for (const egg of eggGameRef.current.mapEggs) {
       drawGroups.push({
         type: "egg",
         drawY: egg.y,
@@ -2215,8 +2224,7 @@ function GameView() {
       );
       updateVisualEffects(now, deltaTime, visualEffectsRef.current);
       updateBubbles(now, deltaTime, bubbleGameRef.current);
-      updateMapEgg(eggGameRef.current.mapEgg, now);
-
+      updateMapEggs(eggGameRef.current.mapEggs, now);
     }
 
     const ctx = ctxRef.current;
@@ -2279,10 +2287,16 @@ function GameView() {
 
     function imageLoaded() {
       loaded++;
-
       if (loaded === imageNames.length) {
         createMapBubble(bubbleGameRef.current);
-        eggGameRef.current.mapEgg = createMapEgg(1200, 700);
+
+        eggGameRef.current.mapEggs.push(
+          createRandomMapEgg(
+            eggGameRef.current.mapEggs,
+            imagesRef.current.egg01
+          )
+        );
+
         draw(ctx, performance.now());
       }
     }
