@@ -1203,7 +1203,7 @@ function GameView() {
     ) {
       return;
     }
-    
+
     const npcPointer = npcPointerRef.current;
 
     // この指が操作担当なら、操作終了時に解放する
@@ -1426,7 +1426,6 @@ function GameView() {
 
     }
 
-    //マップのたまごを触ったかな？
     //マップのたまごを触ったかな？
     const mapEgg = eggGameRef.current.mapEggs.find(
       (egg) =>

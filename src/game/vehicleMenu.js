@@ -73,6 +73,8 @@ export const vehicleMenuItems = [
 
 //メニュー付箋位置情報システム
 export function getVehicleMenuTabRect(menu) {
+  const margin = 30;
+
   const closedX =
     1920 - VehicleMenu.TAB_OVERHANG;
   const openedPanelX =
@@ -82,11 +84,12 @@ export function getVehicleMenuTabRect(menu) {
   const x =
     closedX + (openedX - closedX) * menu.progress;
 
+
   return {
-    x,
-    y: VehicleMenu.TAB_Y,
-    width: VehicleMenu.TAB_OVERHANG,
-    height: VehicleMenu.TAB_HEIGHT,
+    x: x - margin,
+    y: VehicleMenu.TAB_Y - margin,
+    width: VehicleMenu.TAB_WIDTH + margin * 2,
+    height: VehicleMenu.TAB_HEIGHT + margin * 2,
   };
 }
 
