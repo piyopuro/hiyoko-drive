@@ -1061,6 +1061,14 @@ function GameView() {
   //指、動かした。
   function handlePointerMove(event) {
 
+    // 操作担当以外の指は無視
+    if (
+      activePointerIdRef.current !== null &&
+      activePointerIdRef.current !== event.pointerId
+    ) {
+      return;
+    }
+
     const x =
       event.nativeEvent.offsetX / scale;
 
@@ -1188,6 +1196,14 @@ function GameView() {
 
   //指、離した。（キャンセル含む）
   function handlePointerUp(event) {
+    // 操作担当以外の指は無視
+    if (
+      activePointerIdRef.current !== null &&
+      activePointerIdRef.current !== event.pointerId
+    ) {
+      return;
+    }
+    
     const npcPointer = npcPointerRef.current;
 
     // この指が操作担当なら、操作終了時に解放する
