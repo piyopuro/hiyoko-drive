@@ -243,32 +243,6 @@ function GameView() {
 
   const imagesRef = useRef({});
 
-  //カメラ座標管理人
-  const cameraRef = useRef({
-    x: 1000,
-    y: 0,
-  });
-
-  //カメラ移動管理人
-  const cameraDragRef = useRef({
-    isDragging: false,
-    wasDragging: false,
-
-    startX: 0,
-    startY: 0,
-    lastX: 0,
-    lastY: 0,
-
-    velocityX: 0,
-    velocityY: 0,
-
-    edgeX: 0,   //-1 → 左端、 0 → 端ではない、+1 → 右端
-    edgeY: 0,   //-1 → 上端、 0 → 端ではない、+1 → 下端
-
-    edgePushX: 0,
-    edgePushY: 0,
-  });
-
 
   // ======== オブジェクト管理人たち ========
 
@@ -348,6 +322,38 @@ function GameView() {
   const vehicleSelectEffectRef = useRef({
     type: null,
     startTime: 0,
+  });
+
+
+  //========入力・出力の管理人たち========
+
+  //ポインター（指）管理人
+  const activePointerIdRef = useRef(null);
+
+  //カメラ座標管理人
+  const cameraRef = useRef({
+    x: 1000,
+    y: 200,
+  });
+
+  //カメラ移動管理人
+  const cameraDragRef = useRef({
+    isDragging: false,
+    wasDragging: false,
+
+    startX: 0,
+    startY: 0,
+    lastX: 0,
+    lastY: 0,
+
+    velocityX: 0,
+    velocityY: 0,
+
+    edgeX: 0,   //-1 → 左端、 0 → 端ではない、+1 → 右端
+    edgeY: 0,   //-1 → 上端、 0 → 端ではない、+1 → 下端
+
+    edgePushX: 0,
+    edgePushY: 0,
   });
 
 
@@ -925,6 +931,19 @@ function GameView() {
 
   //指、置いた。
   function handlePointerDown(event) {
+
+    // すでに別の指が操作中なら無視
+    if (
+      activePointerIdRef.current !== null &&
+      activePointerIdRef.current !== event.pointerId
+    ) {
+      return;
+    }
+
+    // 最初に触れた指を操作担当にする
+    activePointerIdRef.current = event.pointerId;
+
+
     const x =
       event.nativeEvent.offsetX / scale;
 
@@ -1167,9 +1186,13 @@ function GameView() {
     drag.lastY = y;
   }
 
-  //指、離した。
+  //指、離した。（キャンセル含む）
   function handlePointerUp(event) {
     const npcPointer = npcPointerRef.current;
+
+    // この指が操作担当なら、操作終了時に解放する
+    const isActivePointer =
+      activePointerIdRef.current === event.pointerId;
 
     //ひよこを摘まんでいる指かどうか確認
     if (
@@ -1246,6 +1269,10 @@ function GameView() {
       npcPointer.timerId = null;
       npcPointer.isDragging = false;
 
+      if (isActivePointer) {
+        activePointerIdRef.current = null;
+      }
+
       try {
         event.currentTarget.releasePointerCapture(event.pointerId);
       } catch {
@@ -1255,10 +1282,13 @@ function GameView() {
       return;
     }
 
+    // 通常のカメラ操作終了
     cameraDragRef.current.isDragging = false;
+
+    if (isActivePointer) {
+      activePointerIdRef.current = null;
+    }
   }
-
-
 
   //タップ
   async function handleClick(event) {
