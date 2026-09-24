@@ -15,8 +15,8 @@ export const EggGame = {
     HIT_PADDING: 20,
 
     // ぷくっ情報
-    PUFF_SCALE: 1.08,
-    PUFF_DURATION: 500,
+    PUFF_SCALE: 1.2,
+    PUFF_DURATION: 400,
 
     PUFF_INTERVAL_MIN: 3000,
     PUFF_INTERVAL_MAX: 6000,

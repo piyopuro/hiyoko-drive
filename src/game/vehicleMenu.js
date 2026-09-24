@@ -9,10 +9,10 @@ export const VehicleMenu = {
   TAB_HEIGHT: 140,
 
   PANEL_WIDTH: 1740,
-  PANEL_HEIGHT: 980,
+  PANEL_HEIGHT: 1280,
 
-  PANEL_Y: 230,
-  TAB_Y: 300,
+  PANEL_Y: 80,
+  TAB_Y: 150,
 
   TAB_OVERHANG: 150,   //付箋はみ出し具合
 
@@ -26,7 +26,7 @@ export const vehicleMenuItems = [
   {
     type: "bus",
     skin: "yellow",
-    offsetX: 300,
+    offsetX: 350,
     lineY: 300,   //メニュー罫線の位置
     baselineOffset: 0, //タイヤの位置補整
 
@@ -36,7 +36,7 @@ export const vehicleMenuItems = [
   {
     type: "ambulance",
     skin: "normal",
-    offsetX: 650,
+    offsetX: 700,
     lineY: 300,
     baselineOffset: 12,
 
@@ -46,7 +46,7 @@ export const vehicleMenuItems = [
   {
     type: "fireEngine",
     skin: "normal",
-    offsetX: 1000,
+    offsetX: 1050,
     lineY: 300,
     baselineOffset: 0,
 
@@ -56,7 +56,7 @@ export const vehicleMenuItems = [
   {
     type: "policeCar",
     skin: "normal",
-    offsetX: 1350,
+    offsetX: 1400,
     lineY: 300,
     baselineOffset: 0,
 
