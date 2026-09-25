@@ -329,6 +329,7 @@ function GameView() {
 
   //ポインター（指）管理人
   const activePointerIdRef = useRef(null);
+  const ignoredPointerIdsRef = useRef(new Set());
 
   //カメラ座標管理人
   const cameraRef = useRef({
@@ -933,22 +934,24 @@ function GameView() {
   function handlePointerDown(event) {
 
     // すでに別の指が操作中なら無視
-    if (
-      activePointerIdRef.current !== null &&
-      activePointerIdRef.current !== event.pointerId
-    ) {
+    if (activePointerIdRef.current !== null) {
+      // 2本目以降は完全に無視
+      ignoredPointerIdsRef.current.add(event.pointerId);
       return;
     }
 
     // 最初に触れた指を操作担当にする
     activePointerIdRef.current = event.pointerId;
 
+    // メニュー表示中は、下のマップ操作を一切開始しない
+    const menu = vehicleMenuRef.current;
+    const menuIsVisible = menu.isOpen || menu.progress > 0;
+    if (menuIsVisible) {
+      return;
+    }
 
-    const x =
-      event.nativeEvent.offsetX / scale;
-
-    const y =
-      event.nativeEvent.offsetY / scale;
+    const x = event.nativeEvent.offsetX / scale;
+    const y = event.nativeEvent.offsetY / scale;
 
     const worldPosition = screenToWorld(
       x,
@@ -1060,20 +1063,36 @@ function GameView() {
 
   //指、動かした。
   function handlePointerMove(event) {
-
+    // 無視対象の指
+    if (ignoredPointerIdsRef.current.has(event.pointerId)) {
+      return;
+    }
     // 操作担当以外の指は無視
-    if (
-      activePointerIdRef.current !== null &&
-      activePointerIdRef.current !== event.pointerId
-    ) {
+    if (activePointerIdRef.current !== event.pointerId) {
       return;
     }
 
-    const x =
-      event.nativeEvent.offsetX / scale;
+    //メニューが見えているかな？マップ固定
+    const menu = vehicleMenuRef.current;
+    const menuIsVisible = menu.isOpen || menu.progress > 0;
+    if (menuIsVisible) {
+      cameraDragRef.current = {
+        isDragging: false,
+        startX: x,
+        startY: y,
+        lastX: x,
+        lastY: y,
+        velocityX: 0,
+        velocityY: 0,
+        edgePushX: 0,
+        edgePushY: 0,
+      };
 
-    const y =
-      event.nativeEvent.offsetY / scale;
+      return;
+    }
+
+    const x = event.nativeEvent.offsetX / scale;
+    const y = event.nativeEvent.offsetY / scale;
 
     const npcPointer = npcPointerRef.current;
 
@@ -1196,13 +1215,21 @@ function GameView() {
 
   //指、離した。（キャンセル含む）
   function handlePointerUp(event) {
-    // 操作担当以外の指は無視
+    // 2本目以降の指なら何もしない
     if (
-      activePointerIdRef.current !== null &&
+      ignoredPointerIdsRef.current.has(event.pointerId)
+    ) {
+      ignoredPointerIdsRef.current.delete(event.pointerId);
+      return;
+    }
+
+    // 操作担当の指ではないなら何もしない
+    if (
       activePointerIdRef.current !== event.pointerId
     ) {
       return;
     }
+
 
     const npcPointer = npcPointerRef.current;
 
@@ -1285,9 +1312,8 @@ function GameView() {
       npcPointer.timerId = null;
       npcPointer.isDragging = false;
 
-      if (isActivePointer) {
-        activePointerIdRef.current = null;
-      }
+      activePointerIdRef.current = null;  //操作している指情報を消去
+      ignoredPointerIdsRef.current.clear();   //無視している指情報を消去
 
       try {
         event.currentTarget.releasePointerCapture(event.pointerId);
@@ -1301,9 +1327,9 @@ function GameView() {
     // 通常のカメラ操作終了
     cameraDragRef.current.isDragging = false;
 
-    if (isActivePointer) {
-      activePointerIdRef.current = null;
-    }
+    activePointerIdRef.current = null;
+    ignoredPointerIdsRef.current.clear();
+
   }
 
   //タップ
@@ -1315,6 +1341,15 @@ function GameView() {
     } catch (error) {
       console.error("音声の準備に失敗しました", error);
     }
+
+    //2本目以降の指の操作を無効
+    if (
+      ignoredPointerIdsRef.current.has(event.pointerId)
+    ) {
+      ignoredPointerIdsRef.current.delete(event.pointerId);
+      return;
+    }
+
 
     //直前の操作がドラッグならクリックしない
     if (cameraDragRef.current.wasDragging) {
@@ -1425,6 +1460,46 @@ function GameView() {
 
 
     }
+
+    //付箋おさわりチェック
+    const tabRect = getVehicleMenuTabRect(vehicleMenuRef.current);
+
+    if (isPointInsideRect(x, y, tabRect)) {   //触ってたらメニューをだして！車は動かさないよ。
+      soundManagerRef.current.play("menuOpen01");      //メニュー音
+      toggleVehicleMenu(now, vehicleMenuRef.current);
+      return;
+    }
+
+    //メニュー見えてるかな？
+    const menu = vehicleMenuRef.current;
+    const menuIsVisible = menu.isOpen || menu.progress > 0;
+
+    if (menuIsVisible) {
+      const menuVehicles = getVehicleMenuVehicles(vehicleMenuRef.current);
+
+      for (const menuVehicle of menuVehicles) {
+        const master = vehicleMaster[menuVehicle.type];
+
+        //おくるま選択用当たり判定をご用意。
+        const vehicleRect = {
+          x: menuVehicle.x - master.width / 2,
+          y: menuVehicle.y - master.height / 2,
+          width: master.width,
+          height: master.height,
+        };
+
+        if (isPointInsideRect(x, y, vehicleRect)) {
+          //車を触っていたら車を切り替えて離脱！
+          soundManagerRef.current.play("select01");     //ぷにっ
+          changeVehicleType(menuVehicle.type);
+          return;
+        }
+      }
+
+      return; //メニューが見えてたら車を動かす前に離脱！
+
+    }
+
 
     //マップのたまごを触ったかな？
     const mapEgg = eggGameRef.current.mapEggs.find(
@@ -1577,47 +1652,7 @@ function GameView() {
       return;
     }
 
-    const tabRect = getVehicleMenuTabRect(vehicleMenuRef.current);  //付箋おさわりチェック
 
-    if (isPointInsideRect(x, y, tabRect)) {   //触ってたらメニューをだして！車は動かさないよ。
-      soundManagerRef.current.play("menuOpen01");      //メニュー音
-      toggleVehicleMenu(now, vehicleMenuRef.current);
-
-
-      return;
-    }
-
-    const menu = vehicleMenuRef.current;
-
-    const menuIsVisible =
-      menu.isOpen || menu.progress > 0;
-    //メニュー見えてるかな？
-    if (menuIsVisible) {
-      const menuVehicles = getVehicleMenuVehicles(vehicleMenuRef.current);
-
-      for (const menuVehicle of menuVehicles) {
-        const master = vehicleMaster[menuVehicle.type];
-
-        //おくるま選択用当たり判定をご用意。
-        const vehicleRect = {
-          x: menuVehicle.x - master.width / 2,
-          y: menuVehicle.y - master.height / 2,
-          width: master.width,
-          height: master.height,
-        };
-
-        if (isPointInsideRect(x, y, vehicleRect)) {
-          soundManagerRef.current.play("select01");     //ぷにっ
-          changeVehicleType(menuVehicle.type);
-
-          return;
-          //車を触っていたら車を切り替えて離脱！
-        }
-      }
-
-      return; //メニューが見えてたら車を動かす前に離脱！
-
-    }
 
 
     //今いる車を触ったかな？
