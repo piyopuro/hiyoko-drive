@@ -82,7 +82,7 @@ export function startBubbleGame(now, bubbleGame) {
 
     for (let i = 0; i < BubbleGame.COUNT; i++) {
         const startX = getRandomNumber(100, 1820);
-        const startY = getRandomNumber(300, 1000);
+        const startY = getRandomNumber(300, 1350);
 
         bubbles.push({
             x: startX,
