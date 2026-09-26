@@ -10,7 +10,7 @@ export const InkSplash = {
     COUNT_MAX: 10,
 
     SPEED_MIN: 100,
-    SPEED_MAX: 280,
+    SPEED_MAX: 300,
 
     MAIN_SIZE_MIN: 15,
     MAIN_SIZE_MAX: 20,
@@ -18,7 +18,7 @@ export const InkSplash = {
     CIRCLE_SIZE_MIN: 3,
     CIRCLE_SIZE_MAX: 7,
 
-    GRAVITY: 150,
+    GRAVITY: 200,
 
     DURATION: 500,
 };
