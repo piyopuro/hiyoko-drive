@@ -18,7 +18,7 @@ export const InkSplash = {
     CIRCLE_SIZE_MIN: 3,
     CIRCLE_SIZE_MAX: 7,
 
-    GRAVITY: 100,
+    GRAVITY: 150,
 
     DURATION: 500,
 };
