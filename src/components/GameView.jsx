@@ -154,6 +154,8 @@ import {
   createRandomColorPuddles,
   drawColorPuddle,
   updateColorPuddleCollision,
+  updateInkSplashes,
+  drawInkSplashes,
 } from "../game/others/colorPuddle";
 
 //ゲームの中身を描いてるところだよ。
@@ -246,11 +248,13 @@ function GameView() {
 
   // ======== オブジェクト管理人たち ========
 
-  //インク池ランダム座標決定所
+  //インク池ランダム座標管理人
   const colorPuddlesRef = useRef(null);
   if (colorPuddlesRef.current === null) {
     colorPuddlesRef.current = createRandomColorPuddles();
   }
+  //インクとびちり管理人
+  const inkSplashesRef = useRef([]);
 
   //シャボン玉管理人
   const bubbleGameRef = useRef({
@@ -658,6 +662,8 @@ function GameView() {
         target: { ...newVehicles[0].target },
         transform: { ...newVehicles[0].transform },
         effect: { ...newVehicles[0].effect },
+        isInColorPuddle:
+          newVehicles[0].isInColorPuddle ?? false,
 
         actionState: newVehicles[0].actionState
           ? {
@@ -679,7 +685,18 @@ function GameView() {
       updateDirection(vehicle, dx, dy);
       updateAnimation(vehicle, animationTimerRef, deltaTime);
       updatePosition(vehicle, master, dx, dy, distance, deltaTime);
-      updateColorPuddleCollision(vehicle, colorPuddlesRef.current);
+      updateColorPuddleCollision(
+        vehicle,
+        colorPuddlesRef.current,
+        now,
+        inkSplashesRef.current,
+        soundManagerRef.current
+      );
+      updateInkSplashes(
+        inkSplashesRef.current,
+        deltaTime,
+        now
+      );
       updateEffect(vehicle, now);
       updateFireFightAction(vehicle, now, soundManagerRef.current);
       updatePoliceCarAction(vehicle, now);
@@ -2129,6 +2146,12 @@ function GameView() {
 
     //----------------  ↓↓  前面固定  ↓↓  ------------------------------
 
+    //インク飛沫描画係
+    drawInkSplashes(
+      ctx,
+      inkSplashesRef.current,
+      cameraRef.current
+    );
     //しゃぼんだま描画係
     drawBubbles(
       ctx,
@@ -2344,8 +2367,8 @@ function GameView() {
 
       "tHiyoko", "tCat01", "tCat02", "tCat03",
 
-      "puddle01", "puddle02", "puddle03", "puddle04",
-      "puddle05", "puddle06", "puddle07", "puddle08",
+      "puddle_01", "puddle_02", "puddle_03", "puddle_04",
+      "puddle_05", "puddle_06", "puddle_07", "puddle_08",
 
       "npcHiyoko01",
       "hiyokoHouse01", "hiyokoHouseDoor01",
@@ -2400,6 +2423,7 @@ function GameView() {
     const soundNames = [
       "select01",
       "menuOpen01",
+      "inkPuddle01",
 
       "busHorn", "ambulanceSiren",
       "fireEngineSiren", "fireFightAction01", "fireFightAction02",
