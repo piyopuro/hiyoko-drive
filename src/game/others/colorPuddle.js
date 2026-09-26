@@ -9,8 +9,8 @@ export const InkSplash = {
     COUNT_MIN: 7,
     COUNT_MAX: 10,
 
-    SPEED_MIN: 50,
-    SPEED_MAX: 140,
+    SPEED_MIN: 100,
+    SPEED_MAX: 280,
 
     MAIN_SIZE_MIN: 15,
     MAIN_SIZE_MAX: 20,
