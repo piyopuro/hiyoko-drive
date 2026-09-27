@@ -1076,6 +1076,12 @@ function GameView() {
       edgePushX: 0,
       edgePushY: 0,
     };
+
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Pointer Capture非対応時はそのまま続行
+    }
   }
 
   //指、動かした。
@@ -1344,6 +1350,12 @@ function GameView() {
 
     // 通常のカメラ操作終了
     cameraDragRef.current.isDragging = false;
+
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // Pointer Capture非対応時はそのまま続行
+    }
 
     activePointerIdRef.current = null;
     ignoredPointerIdsRef.current.clear();
@@ -2359,7 +2371,7 @@ function GameView() {
       "fireEngine01", "fireFightAction01", "fireFightAction02",
       "policeCar01",
 
-      "car01","car02","car03","car04","car05","car06","car07","car08",
+      "car01", "car02", "car03", "car04", "car05", "car06", "car07", "car08",
 
       "train01",
       "crossing01",
