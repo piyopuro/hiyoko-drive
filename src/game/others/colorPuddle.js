@@ -9,8 +9,8 @@ export const InkSplash = {
     COUNT_MIN: 7,
     COUNT_MAX: 10,
 
-    SPEED_MIN: 100,
-    SPEED_MAX: 300,
+    SPEED_MIN: 400,
+    SPEED_MAX: 800,
 
     MAIN_SIZE_MIN: 15,
     MAIN_SIZE_MAX: 20,
@@ -18,7 +18,7 @@ export const InkSplash = {
     CIRCLE_SIZE_MIN: 3,
     CIRCLE_SIZE_MAX: 7,
 
-    GRAVITY: 200,
+    GRAVITY: 800,
 
     DURATION: 500,
 };
@@ -193,7 +193,6 @@ export function createInkSplash(
     inkSplashes,
     splashType
 ) {
-    console.log("💦 SPLASH TYPE:", splashType);
     const count = Math.floor(
         getRandomNumber(
             InkSplash.COUNT_MIN,
@@ -277,9 +276,13 @@ export function updateInkSplashes(
             continue;
         }
 
+        const progress = elapsed / InkSplash.DURATION;
+        // 最初速く、後半ゆっくり
+        const easeOut = Math.pow(1 - progress, 0.8);
+
         // 移動
-        splash.x += splash.vx * deltaTime;
-        splash.y += splash.vy * deltaTime;
+        splash.x += splash.vx * easeOut * deltaTime;
+        splash.y += splash.vy * easeOut * deltaTime;
         // 重力
         splash.vy += InkSplash.GRAVITY * deltaTime;
     }
