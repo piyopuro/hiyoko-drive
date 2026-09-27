@@ -63,6 +63,16 @@ export const vehicleMenuItems = [
     selectOffsetX: -90,
     selectOffsetY: -90,
   },
+  {
+    type: "car",
+    skin: "yellow",
+    offsetX: 350,
+    lineY: 600,
+    baselineOffset: 0,
+
+    selectOffsetX: -90,
+    selectOffsetY: -90,
+  },
 
 ]
 

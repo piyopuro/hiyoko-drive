@@ -949,6 +949,12 @@ function GameView() {
 
   //指、置いた。
   function handlePointerDown(event) {
+    // メニュー表示中は、下のマップ操作を一切開始しない
+    const menu = vehicleMenuRef.current;
+    const menuIsVisible = menu.isOpen || menu.progress > 0;
+    if (menuIsVisible) {
+      return;
+    }
 
     // すでに別の指が操作中なら無視
     if (activePointerIdRef.current !== null) {
@@ -960,12 +966,6 @@ function GameView() {
     // 最初に触れた指を操作担当にする
     activePointerIdRef.current = event.pointerId;
 
-    // メニュー表示中は、下のマップ操作を一切開始しない
-    const menu = vehicleMenuRef.current;
-    const menuIsVisible = menu.isOpen || menu.progress > 0;
-    if (menuIsVisible) {
-      return;
-    }
 
     const x = event.nativeEvent.offsetX / scale;
     const y = event.nativeEvent.offsetY / scale;
@@ -1089,6 +1089,9 @@ function GameView() {
       return;
     }
 
+    const x = event.nativeEvent.offsetX / scale;
+    const y = event.nativeEvent.offsetY / scale;
+
     //メニューが見えているかな？マップ固定
     const menu = vehicleMenuRef.current;
     const menuIsVisible = menu.isOpen || menu.progress > 0;
@@ -1108,8 +1111,6 @@ function GameView() {
       return;
     }
 
-    const x = event.nativeEvent.offsetX / scale;
-    const y = event.nativeEvent.offsetY / scale;
 
     const npcPointer = npcPointerRef.current;
 
@@ -2358,6 +2359,8 @@ function GameView() {
       "fireEngine01", "fireFightAction01", "fireFightAction02",
       "policeCar01",
 
+      "car01","car02","car03","car04","car05","car06","car07","car08",
+
       "train01",
       "crossing01",
 
@@ -2428,6 +2431,7 @@ function GameView() {
       "busHorn", "ambulanceSiren",
       "fireEngineSiren", "fireFightAction01", "fireFightAction02",
       "policeCarSiren", "policeCarAction01",
+      "car01",
       "train01", "crossing", "trainHorn01", "passengerAppear01",
 
       "hiyokoJump", "hiyokoWalk01",

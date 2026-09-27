@@ -132,6 +132,33 @@ export const vehicleMaster = {
 
   },
 
+  car: {
+    width: 130,
+    height: 87,
+
+    speed: 300,
+
+    canChangeColor: true,
+    defaultSkin: "yellow",
+    skins: {
+      yellow: "car01",
+      blue: "car02",
+      green: "car03",
+      pink: "car04",
+      red: "car05",
+      purple: "car06",
+      limeGreen: "car07",
+      orange: "car08",
+    },
+
+    shadow: {
+      offsetY: 30,
+      width: 55,
+      height: 18,
+    },
+
+    actionSound: "car01",
+  },
 
   /* 今後実装予定
   bigbus: {

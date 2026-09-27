@@ -1,3 +1,3 @@
 export const APP_NAME = "Okki-Bapu";
 
-export const VERSION = "0.11.13";
+export const VERSION = "0.11.14";
