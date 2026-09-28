@@ -956,6 +956,11 @@ function GameView() {
       return;
     }
 
+    // たまごイベント中はマップ操作をしない
+    if (eggGameRef.current.event.active) {
+      return;
+    }
+    
     // すでに別の指が操作中なら無視
     if (activePointerIdRef.current !== null) {
       // 2本目以降は完全に無視
