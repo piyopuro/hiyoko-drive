@@ -124,6 +124,11 @@ import {
   updatePoliceCarAction,
 } from "../game/vehicle/policeCarAction";
 
+import {
+  CarAction,
+  updateCarAction,
+} from "../game/vehicle/carAction";
+
 //その他
 //シャボン玉関係者
 import {
@@ -700,7 +705,7 @@ function GameView() {
       updateEffect(vehicle, now);
       updateFireFightAction(vehicle, now, soundManagerRef.current);
       updatePoliceCarAction(vehicle, now);
-
+      updateCarAction(vehicle, now);
 
       newVehicles[0] = vehicle;
       return newVehicles;
@@ -960,7 +965,7 @@ function GameView() {
     if (eggGameRef.current.event.active) {
       return;
     }
-    
+
     // すでに別の指が操作中なら無視
     if (activePointerIdRef.current !== null) {
       // 2本目以降は完全に無視
@@ -1616,9 +1621,7 @@ function GameView() {
 
 
     //ひよこを触ったかな？
-    const tappedNPC =
-      getTappedNPC(worldPosition.x, worldPosition.y);
-
+    const tappedNPC = getTappedNPC(worldPosition.x, worldPosition.y);
     if (tappedNPC) {
       startNPCJump(tappedNPC, now);
       soundManagerRef.current.play(
@@ -1668,7 +1671,6 @@ function GameView() {
     }
 
     const crossingRect = getCrossingRect();
-
     if (
       isPointInsideRect(
         worldPosition.x,
@@ -1688,23 +1690,20 @@ function GameView() {
     }
 
 
-
-
     //今いる車を触ったかな？
     const vehicle = vehiclesRef.current[0];
+    const vehicleRect = getVehicleRect(vehicle);
 
-    //君は消防車？
-    if (vehicle.type === "fireEngine") {
-      const vehicleRect = getVehicleRect(vehicle);
+    if (
+      isPointInsideRect(
+        worldPosition.x,
+        worldPosition.y,
+        vehicleRect
+      )
+    ) {
 
-      if (
-        isPointInsideRect(
-          worldPosition.x,
-          worldPosition.y,
-          vehicleRect
-        )
-      ) {
-
+      //消防車？
+      if (vehicle.type === "fireEngine") {
         const isActionRunning =
           vehicle.actionState?.hiyoko?.jumpStartTime != null;
 
@@ -1759,20 +1758,17 @@ function GameView() {
         }
         return;
       }
-    }
 
+      //消防車以外の共通キラキラ
+      createTapSparkles(
+        worldPosition.x,
+        worldPosition.y,
+        now,
+        visualEffectsRef.current
+      );
 
-    //君はパトカー？
-    if (vehicle.type === "policeCar") {
-      const vehicleRect = getVehicleRect(vehicle);
-
-      if (
-        isPointInsideRect(
-          worldPosition.x,
-          worldPosition.y,
-          vehicleRect
-        )
-      ) {
+      //君はパトカー？
+      if (vehicle.type === "policeCar") {
         const isActionRunning =
           vehicle.actionState?.startTime != null;
 
@@ -1799,7 +1795,39 @@ function GameView() {
 
         return;
       }
+
+
+      //君は乗用車？
+      if (vehicle.type === "car") {
+        const isActionRunning =
+          vehicle.actionState?.startTime != null;
+
+        if (!isActionRunning) {
+          setVehicles((prevVehicles) => {
+            const newVehicles = [...prevVehicles];
+
+            const vehicle = {
+              ...newVehicles[0],
+
+              actionState: {
+                ...newVehicles[0].actionState,
+                startTime: now,
+              },
+            };
+
+            newVehicles[0] = vehicle;
+
+            return newVehicles;
+          });
+
+          soundManagerRef.current.play("car01");
+        }
+
+        return;
+      }
+
     }
+
 
     //アクション中は移動しないよ！
     const fireFightActionRunning =
@@ -1909,6 +1937,29 @@ function GameView() {
         frame =
           PoliceCarAction.frames[
           frameIndex % PoliceCarAction.frames.length
+          ];
+      }
+    }
+
+    if (
+      vehicle.type === "car" &&
+      vehicle.actionState?.startTime != null
+    ) {
+      const elapsed =
+        now - vehicle.actionState.startTime;
+
+      const frameIndex = Math.floor(
+        elapsed / CarAction.FRAME_INTERVAL
+      );
+
+      const totalFrames =
+        CarAction.frames.length *
+        CarAction.LOOP_COUNT;
+
+      if (frameIndex < totalFrames) {
+        frame =
+          CarAction.frames[
+          frameIndex % CarAction.frames.length
           ];
       }
     }
@@ -2424,12 +2475,24 @@ function GameView() {
       }
     }
 
+    const webpImages = [
+      "background02",
+      "menuBackground01",
+      "eggEvent01",
+      "eggEvent02",
+      "hiyokoHouse01",
+    ];
+
     //読み込んでお名前をつける係
     imageNames.forEach((name) => {
       const image = new Image();
 
       image.onload = imageLoaded;
-      image.src = `${import.meta.env.BASE_URL}images/${name}.png`;
+
+
+      const extension = webpImages.includes(name) ? "webp" : "png";
+
+      image.src = `${import.meta.env.BASE_URL}images/${name}.${extension}`;
 
       imagesRef.current[name] = image;
     });

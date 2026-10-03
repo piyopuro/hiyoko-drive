@@ -153,11 +153,16 @@ export const vehicleMaster = {
 
     shadow: {
       offsetY: 30,
-      width: 55,
+      width: 45,
       height: 18,
     },
 
     actionSound: "car01",
+
+    initialActionState: {
+      startTime: null,
+    },
+
   },
 
   /* 今後実装予定
