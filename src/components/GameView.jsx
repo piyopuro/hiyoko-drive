@@ -20,6 +20,15 @@ import {
 } from "../game/constants/mapConfig";
 
 
+//道路関係者
+import {
+  roadMap,
+} from "../game/constants/roadConfig";
+import {
+  drawRoads,
+} from "../game/road/road";
+
+
 //車基本ステータス
 import {
   Direction,
@@ -37,6 +46,14 @@ import {
   drawVehicleMenuTab,
   drawVehicleMenu,
 } from "../game/vehicleMenu";
+
+//ひよこカー関係者
+import {
+  createTrafficCar,
+  drawTrafficCar,
+  updateTrafficCar,
+  getRoadAtPosition,
+} from "../game/trafficCar/trafficCar";
 
 //NPC関係者
 import {
@@ -221,6 +238,17 @@ function GameView() {
   ]);
 
   const vehiclesRef = useRef(vehicles); //車の情報
+
+  //ひよこカー管理人
+  const trafficCarsRef = useRef(null);
+
+  if (!trafficCarsRef.current) {
+    trafficCarsRef.current = [
+      createTrafficCar("hiyokoCar01", 8, 3),
+      createTrafficCar("hiyokoCar02", 11, 1),
+      createTrafficCar("hiyokoCar03", 15, 7),
+    ];
+  }
 
   //ひよこ管理人
   const npcsRef = useRef(null);
@@ -2019,6 +2047,14 @@ function GameView() {
       -camera.y
     );
 
+    //道路描画係
+    drawRoads(
+      ctx,
+      roadMap,
+      imagesRef.current,
+      cameraRef.current
+    );
+
     //線路描画係
     drawRailways(
       ctx,
@@ -2105,6 +2141,17 @@ function GameView() {
         object: egg,
       });
     }
+
+    //ひよこカーを描画グループに登録
+    trafficCarsRef.current.forEach((car) => {
+      drawGroups.push({
+        type: "trafficCar",
+        object: car,
+        drawY: car.y,
+      });
+    });
+
+    //------------------登録ここまで------------------------------
 
     //★描画Yが小さい順に並べる
     drawGroups.sort(
@@ -2208,6 +2255,16 @@ function GameView() {
             cameraRef.current
           );
           break;
+
+        case "trafficCar":
+          drawTrafficCar(
+            ctx,
+            group.object,
+            imagesRef.current[group.object.type],
+            cameraRef.current
+          );
+          break;
+
       }
     }
 
@@ -2379,6 +2436,9 @@ function GameView() {
       updateCameraInertia();
       updateVehicle(now, deltaTime);
       updateNPCs(now, deltaTime);
+      trafficCarsRef.current.forEach((car) => {
+        updateTrafficCar(car, now, deltaTime);
+      });
       updateHiyokoHouseDoor(
         hiyokoHouseRef.current,
         now,
@@ -2420,6 +2480,11 @@ function GameView() {
     const imageNames = [
       "background02",
 
+      "road_horizontal", "road_vertical",
+      "road_t_01", "road_t_02", "road_t_03", "road_t_04",
+      "road_corner_01", "road_corner_02", "road_corner_03", "road_corner_04",
+      "road_cross", "road_crosswalk01", "road_crosswalk02",
+
       "bus01", "bus02", "bus03", "bus04",
       "bus05", "bus06", "bus07", "bus08",
 
@@ -2428,6 +2493,8 @@ function GameView() {
       "policeCar01",
 
       "car01", "car02", "car03", "car04", "car05", "car06", "car07", "car08",
+
+      "hiyokoCar01", "hiyokoCar02", "hiyokoCar03",
 
       "train01",
       "crossing01",
@@ -2512,6 +2579,8 @@ function GameView() {
       "fireEngineSiren", "fireFightAction01", "fireFightAction02",
       "policeCarSiren", "policeCarAction01",
       "car01",
+
+      "hiyokoCar01", "hiyokoCar02", "hiyokoCar03",
       "train01", "crossing", "trainHorn01", "passengerAppear01",
 
       "hiyokoJump", "hiyokoWalk01",
