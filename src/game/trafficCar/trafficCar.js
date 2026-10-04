@@ -3,8 +3,11 @@ import { roadMap, Road } from "../constants/roadConfig";
 
 //ひよこカー情報
 export const TrafficCar = {
-    SPEED: 200,
+    SPEED: 150,
     FRAME_INTERVAL: 200,
+    TAP_FRAMES: [0, 2, 3, 4, 3, 4, 3, 4, 3, 2, 0],
+    TAP_FRAME_INTERVAL: 170,
+    POYON_DURATION: 300,
 };
 
 
@@ -15,14 +18,24 @@ export const TrafficCar = {
 export function createTrafficCar(type, roadX, roadY) {
     const x = roadX * Road.TILE_SIZE + Road.TILE_SIZE / 2;
     const y = roadY * Road.TILE_SIZE + Road.TILE_SIZE / 2;
+    const soundType =
+        `hiyokoCar0${Math.floor(Math.random() * 3) + 1}`;
 
     return {
         type,
         x,
         y,
-
         direction: "right",
         frame: 0,
+
+        tapAnimation: false,
+        tapAnimationStart: 0,
+        tapAnimationFrame: 0,
+        scale: 1,
+        poyonStart: 0,
+
+        soundType,
+
         turnRoadX: null,
         turnRoadY: null,
     };
@@ -103,6 +116,39 @@ export function isRoadCenter(car) {
 
 
 //=======================================
+// ひよこカーおさわりチェック係
+//=======================================
+export function getTappedTrafficCar(
+    worldX,
+    worldY,
+    trafficCars
+) {
+    return trafficCars.find((car) => {
+        const halfWidth = 70;
+        const halfHeight = 50;
+
+        return (
+            worldX >= car.x - halfWidth &&
+            worldX <= car.x + halfWidth &&
+            worldY >= car.y - halfHeight &&
+            worldY <= car.y + halfHeight
+        );
+    });
+}
+
+
+//=======================================
+// ぽよん計算係
+//=======================================
+function updateTrafficCarPoyon(car, now) {
+    const elapsed = now - car.tapAnimationStart;
+    const progress = Math.min(elapsed / TrafficCar.POYON_DURATION, 1);
+
+    car.scale = 1 + Math.sin(progress * Math.PI) * 0.3;
+}
+
+
+//=======================================
 // ひよこカーを描く係
 //=======================================
 export function drawTrafficCar(ctx, car, image, camera) {
@@ -124,16 +170,19 @@ export function drawTrafficCar(ctx, car, image, camera) {
         camera
     );
 
+    const drawWidth = FRAME_WIDTH * car.scale;
+    const drawHeight = FRAME_HEIGHT * car.scale;
+
     ctx.drawImage(
         image,
         sx,
         sy,
         FRAME_WIDTH,
         FRAME_HEIGHT,
-        screenPosition.x - FRAME_WIDTH / 2,
-        screenPosition.y - FRAME_HEIGHT / 2,
-        FRAME_WIDTH,
-        FRAME_HEIGHT
+        screenPosition.x - drawWidth / 2,
+        screenPosition.y - drawHeight / 2,
+        drawWidth,
+        drawHeight
     );
 }
 
@@ -143,24 +192,38 @@ export function drawTrafficCar(ctx, car, image, camera) {
 //=======================================
 export function updateTrafficCar(car, now, deltaTime) {
 
+    //ひよこカータップ時
+    if (car.tapAnimation) {
+        updateTrafficCarPoyon(car, now);
+
+        const elapsed = now - car.tapAnimationStart;
+        const frameIndex = Math.floor(elapsed / TrafficCar.TAP_FRAME_INTERVAL);
+
+        if (frameIndex >= TrafficCar.TAP_FRAMES.length) {
+            car.tapAnimation = false;
+            car.tapAnimationFrame = 0;
+            car.frame = 0;
+        } else {
+            car.tapAnimationFrame = frameIndex;
+            car.frame = TrafficCar.TAP_FRAMES[frameIndex];
+        }
+
+        return;
+    }
+
+
+    //通常時
     car.frame = Math.floor(now / TrafficCar.FRAME_INTERVAL) % 2;
 
-    const road = getRoadAtPosition(car.x, car.y);   //ひよこカーの座標から道路座標・道路タイプを取得
-
-    console.log(
-        "車の座標",
-        car.x,
-        car.y,
-        "取得した道路",
-        road
-    );
+    //ひよこカーの座標から道路座標・道路タイプを取得
+    const road = getRoadAtPosition(car.x, car.y);
 
     if (road && isRoadCenter(car)) {
         //記録された道路座標と今の道路座標を比較
         const sameRoad =
             car.turnRoadX === road.x &&
             car.turnRoadY === road.y;
-            
+
         //通ってなければ方向転換+この道路を記録
         if (!sameRoad) {
             car.direction = getNextDirection(car, road);

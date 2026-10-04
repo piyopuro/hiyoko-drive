@@ -18,8 +18,8 @@ export const TapEffect = {
   MIN_SIZE: 35,
   MAX_SIZE: 65,
 
-  MIN_DISTANCE: 20,
-  MAX_DISTANCE: 75,
+  MIN_DISTANCE: 80,
+  MAX_DISTANCE: 95,
 };
 
 //========星キラキラの情報========
@@ -44,7 +44,7 @@ export const StarSparkle = {
 //=================================
 export function createTapSparkles(x, y, now, tapEffects) {
   const sparkleCount =
-    Math.random() < 0.5 ? 3 : 4;
+    Math.random() < 0.5 ? 4 : 5;
 
   for (let i = 0; i < sparkleCount; i++) {
     const angle =

@@ -53,6 +53,7 @@ import {
   drawTrafficCar,
   updateTrafficCar,
   getRoadAtPosition,
+  getTappedTrafficCar,
 } from "../game/trafficCar/trafficCar";
 
 //NPC関係者
@@ -1714,6 +1715,26 @@ function GameView() {
         trainPassengersRef.current,
         soundManagerRef.current
       );
+      return;
+    }
+
+    //ひよこカーを触ったかな？
+    const tappedTrafficCar = getTappedTrafficCar(worldPosition.x, worldPosition.y, trafficCarsRef.current);
+
+    if (tappedTrafficCar) {
+      tappedTrafficCar.tapAnimation = true;
+      tappedTrafficCar.tapAnimationStart = now;
+      tappedTrafficCar.tapAnimationFrame = 0;
+      tappedTrafficCar.poyonStart = now;
+      soundManagerRef.current.play(tappedTrafficCar.soundType);
+
+      createTapSparkles(
+        worldPosition.x,
+        worldPosition.y,
+        now,
+        visualEffectsRef.current
+      );
+
       return;
     }
 
