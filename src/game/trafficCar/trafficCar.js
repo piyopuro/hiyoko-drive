@@ -1,5 +1,6 @@
 import { worldToScreen } from "../utils/draw";
 import { roadMap, Road } from "../constants/roadConfig";
+import { drawShadow } from "../utils/draw";
 
 //ひよこカー情報
 export const TrafficCar = {
@@ -172,6 +173,15 @@ export function drawTrafficCar(ctx, car, image, camera) {
 
     const drawWidth = FRAME_WIDTH * car.scale;
     const drawHeight = FRAME_HEIGHT * car.scale;
+
+    // 影
+    drawShadow(
+        ctx,
+        screenPosition.x,
+        screenPosition.y + 32,
+        50,
+        18
+    );
 
     ctx.drawImage(
         image,

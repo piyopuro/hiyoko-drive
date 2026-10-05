@@ -103,7 +103,6 @@ import {
 //電車関係者
 import {
   Railway,
-  railwayMap,
 } from "../game/constants/railwayConfig";
 import {
   drawRailways,
@@ -212,13 +211,13 @@ function GameView() {
       skin: "yellow",
 
       position: {
-        x: 960,
-        y: 540,
+        x: Map.WIDTH / 2,
+        y: Map.HEIGHT / 2,
       },
 
       target: {
-        x: 960,
-        y: 540,
+        x: 5000,
+        y: 2000,
       },
 
       direction: Direction.RIGHT,
@@ -246,6 +245,7 @@ function GameView() {
   if (!trafficCarsRef.current) {
     trafficCarsRef.current = [
       createTrafficCar("hiyokoCar01", 10, 2),
+      createTrafficCar("hiyokoCar01", 13, 10),
       createTrafficCar("hiyokoCar02", 19, 8),
       createTrafficCar("hiyokoCar03", 21, 14),];
   }
@@ -256,10 +256,10 @@ function GameView() {
   if (!npcsRef.current) {
     npcsRef.current = [
       createNPC("hiyoko", 500, 540),
-      createNPC("hiyoko", 800, 500),
-      createNPC("hiyoko", 1100, 600),
-      createNPC("hiyoko", 1400, 450),
-      createNPC("hiyoko", 1700, 550),
+      createNPC("hiyoko", 3600, 2000),
+      createNPC("hiyoko", 2200, 1300),
+      createNPC("hiyoko", 2800, 1800),
+      createNPC("hiyoko", 3000, 1440),
     ].filter(Boolean);
   }
 
@@ -330,12 +330,8 @@ function GameView() {
       //右向きなら1、左向きなら-1
       direction: 1,
 
-      x: -1344,
+      x: 0,
       y: 0,
-
-      railwayOffset: {
-        y: 15,
-      },
 
       startTime: 0,
     },
@@ -370,8 +366,8 @@ function GameView() {
 
   //カメラ座標管理人
   const cameraRef = useRef({
-    x: 1000,
-    y: 200,
+    x: 1920,
+    y: 912,
   });
 
   //カメラ移動管理人
@@ -2078,7 +2074,6 @@ function GameView() {
     //線路描画係
     drawRailways(
       ctx,
-      railwayMap,
       imagesRef.current.railway01,
       cameraRef.current
     );
@@ -2568,6 +2563,7 @@ function GameView() {
       "eggEvent01",
       "eggEvent02",
       "hiyokoHouse01",
+      "railway01",
     ];
 
     //読み込んでお名前をつける係

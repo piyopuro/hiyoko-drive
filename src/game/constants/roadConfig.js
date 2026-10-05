@@ -5,80 +5,54 @@ export const Road = {
   types: {
     horizontal: {
       connections: ["left", "right"],
-      canVehicle: true,
-      canHiyoko: false,
     },
 
     vertical: {
       connections: ["up", "down"],
-      canVehicle: true,
-      canHiyoko: false,
     },
 
     corner_01: {
       connections: ["down", "right"],
-      canVehicle: true,
-      canHiyoko: false,
     },
 
     corner_02: {
       connections: ["left", "down"],
-      canVehicle: true,
-      canHiyoko: false,
     },
 
     corner_03: {
       connections: ["up", "left"],
-      canVehicle: true,
-      canHiyoko: false,
     },
 
     corner_04: {
       connections: ["right", "up"],
-      canVehicle: true,
-      canHiyoko: false,
     },
 
     t_01: {
       connections: ["left", "right", "up"],
-      canVehicle: true,
-      canHiyoko: false,
     },
 
     t_02: {
       connections: ["left", "right", "down"],
-      canVehicle: true,
-      canHiyoko: false,
     },
 
     t_03: {
       connections: ["left", "up", "down"],
-      canVehicle: true,
-      canHiyoko: false,
     },
 
     t_04: {
       connections: ["right", "up", "down"],
-      canVehicle: true,
-      canHiyoko: false,
     },
 
     cross: {
       connections: ["left", "right", "up", "down"],
-      canVehicle: true,
-      canHiyoko: false,
     },
 
     crosswalk01: {
       connections: ["left", "right"],
-      canVehicle: true,
-      canHiyoko: true,
     },
 
     crosswalk02: {
       connections: ["up", "down"],
-      canVehicle: true,
-      canHiyoko: true,
     },
   },
 };
@@ -143,7 +117,7 @@ export const roadMap = [
   { type: "corner_01", x: 12, y: 6 },
   { type: "horizontal", x: 13, y: 6 },
   { type: "horizontal", x: 14, y: 6 },
-  { type: "horizontal", x: 15, y: 6 },
+  { type: "crosswalk01", x: 15, y: 6 },
   { type: "horizontal", x: 16, y: 6 },
   { type: "corner_02", x: 17, y: 6 },
 
@@ -155,7 +129,7 @@ export const roadMap = [
 
   // 中央環状道路・下
   { type: "horizontal", x: 13, y: 10 },
-  { type: "horizontal", x: 14, y: 10 },
+  { type: "crosswalk01", x: 14, y: 10 },
   { type: "horizontal", x: 15, y: 10 },
   { type: "horizontal", x: 16, y: 10 },
   { type: "corner_03", x: 17, y: 10 },

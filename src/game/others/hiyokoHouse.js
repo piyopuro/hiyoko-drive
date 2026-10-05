@@ -1,13 +1,13 @@
 import { getRandomNumber } from "../utils/math";
 import { Map } from "../constants/mapConfig";
 import {
-    Railway,
-    railwayMap,
-} from "../constants/railwayConfig";
-import {
     worldToScreen,
     drawShadow,
 } from "../utils/draw";
+import {
+    canPlaceGroundObjectAt,
+} from "../constants/mapGrid";
+
 
 //========================================
 // ひよこのお家 基本設定
@@ -34,45 +34,6 @@ export const HiyokoHouse = {
     POUNCE_SCALE_Y: 1.18,
 };
 
-//========================================
-// 線路と重なるかチェック
-//========================================
-
-function isHouseOverlappingRailway(x, y) {
-
-    const houseLeft =
-        x - HiyokoHouse.WIDTH / 2;
-
-    const houseRight =
-        x + HiyokoHouse.WIDTH / 2;
-
-    const houseTop =
-        y - HiyokoHouse.HEIGHT / 2;
-
-    const houseBottom =
-        y + HiyokoHouse.HEIGHT / 2;
-
-
-    return railwayMap.some((rail) => {
-
-        const railLeft = rail.x;
-        const railRight =
-            rail.x + Railway.RAILWAY_WIDTH;
-
-        const railTop = rail.y;
-        const railBottom =
-            rail.y + Railway.RAILWAY_HEIGHT;
-
-
-        return (
-            houseLeft < railRight &&
-            houseRight > railLeft &&
-            houseTop < railBottom &&
-            houseBottom > railTop
-        );
-    });
-}
-
 
 //========================================
 // お家を作る係
@@ -89,7 +50,7 @@ export function createHiyokoHouse() {
     let x;
     let y;
 
-    //線路と重ならない場所が見つかるまで探す
+    //置ける場所が見つかるまで探す
     do {
 
         x = getRandomNumber(
@@ -103,7 +64,24 @@ export function createHiyokoHouse() {
         );
 
     } while (
-        isHouseOverlappingRailway(x, y)
+        !canPlaceGroundObjectAt([
+            {
+                x: x - HiyokoHouse.WIDTH / 2,
+                y: y,
+            },
+            {
+                x: x + HiyokoHouse.WIDTH / 2,
+                y: y,
+            },
+            {
+                x: x - HiyokoHouse.WIDTH / 2,
+                y: y + HiyokoHouse.HEIGHT / 2,
+            },
+            {
+                x: x + HiyokoHouse.WIDTH / 2,
+                y: y + HiyokoHouse.HEIGHT / 2,
+            },
+        ])
     );
 
     return {

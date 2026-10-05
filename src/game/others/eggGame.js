@@ -2,9 +2,8 @@ import { worldToScreen, drawShadow } from "../utils/draw";
 import { getRandomNumber } from "../utils/math";
 import { Map } from "../constants/mapConfig";
 import {
-    Railway,
-    railwayMap,
-} from "../constants/railwayConfig";
+    canPlaceGroundObjectAt,
+} from "../constants/mapGrid";
 
 
 // ================================
@@ -59,31 +58,6 @@ export const EggGame = {
     EGG_BOTTOM_OFFSET_Y: 30,
 };
 
-//========================================
-// 線路と重なるかチェック
-//========================================
-export function isEggOverlappingRailway(x, y, image) {
-    const eggWidth = image.width;
-    const eggHeight = image.height;
-    const eggLeft = x - eggWidth / 2;
-    const eggRight = x + eggWidth / 2;
-    const eggTop = y - eggHeight;
-    const eggBottom = y;
-
-    return railwayMap.some((rail) => {
-        const railLeft = rail.x;
-        const railRight = rail.x + Railway.RAILWAY_WIDTH;
-        const railTop = rail.y;
-        const railBottom = rail.y + Railway.RAILWAY_HEIGHT;
-
-        return (
-            eggLeft < railRight &&
-            eggRight > railLeft &&
-            eggTop < railBottom &&
-            eggBottom > railTop
-        );
-    });
-}
 
 //========================================
 // 他の卵と重なるかチェック
@@ -154,7 +128,7 @@ export function createRandomMapEgg(eggs, image) {
         );
 
     } while (
-        isEggOverlappingRailway(x, y, image) ||
+        !canPlaceGroundObjectAt(x, y) ||
         isEggOverlappingOtherEgg(x, y, image, eggs)
     );
 

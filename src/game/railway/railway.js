@@ -1,9 +1,9 @@
+import { MapGrid } from "../constants/mapGrid";
 import {
   Railway,
   TrainPassenger,
   railwayMap,
 } from "../constants/railwayConfig"
-
 import {
   drawShadow,
   drawRectShadow,
@@ -66,9 +66,11 @@ export function drawRailway(
     return;
   }
 
+  const worldX = railway.x * MapGrid.TILE_SIZE;
+  const worldY = railway.y * MapGrid.TILE_SIZE;
   const screenPosition = worldToScreen(
-    railway.x,
-    railway.y,
+    worldX,
+    worldY,
     camera
   );
 
@@ -87,11 +89,10 @@ export function drawRailway(
 //=======================================
 export function drawRailways(
   ctx,
-  railways,
   image,
   camera
 ) {
-  for (const railway of railways) {
+  for (const railway of railwayMap) {
     drawRailway(
       ctx,
       railway,
@@ -325,7 +326,7 @@ export function drawTrainPassengers(
 //======================================
 //踏切描画係
 //======================================
-export function drawCrossing(ctx, image, crossing,camera) {
+export function drawCrossing(ctx, image, crossing, camera) {
 
   if (!image) {
     return;
@@ -337,10 +338,10 @@ export function drawCrossing(ctx, image, crossing,camera) {
   const sourceY = 0;
 
   const screenPosition = worldToScreen(
-  Railway.CROSSING_X,
-  Railway.CROSSING_Y,
-  camera
-);
+    Railway.CROSSING_X,
+    Railway.CROSSING_Y,
+    camera
+  );
 
   drawShadow(
     ctx,
@@ -435,11 +436,15 @@ export function updateTrain(
   trainPassengers
 ) {
 
-  const railwayRightX =
-    railwayMap[0].x +
-    Railway.RAILWAY_WIDTH * railwayMap.length;
   const railwayLeftX =
-    railwayMap[0].x;
+    railwayMap[0].x * MapGrid.TILE_SIZE;
+
+  const railwayRightX =
+    (railwayMap[railwayMap.length - 1].x + 2) *
+    MapGrid.TILE_SIZE;
+
+  const railwayY =
+    railwayMap[0].y * MapGrid.TILE_SIZE;
 
   //踏切を押して電車を待っているところ
   if (train.isWaiting) {
@@ -451,8 +456,8 @@ export function updateTrain(
 
       //電車のＹ座標　は　線路情報から。
       train.y =
-        railwayMap[0].y +
-        train.railwayOffset.y;
+        railwayY +
+        Railway.TRAIN_OFFSET_Y;
       // -Railway.TRAIN_HEIGHT / 2;
 
       if (train.direction === 1) {

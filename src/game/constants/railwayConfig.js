@@ -2,7 +2,7 @@
 export const Railway = {
   //踏切
   CROSSING_X: 300,
-  CROSSING_Y: 2880,
+  CROSSING_Y: 3000,
   CROSSING_WIDTH: 128,
   CROSSING_HEIGHT: 192,
 
@@ -12,8 +12,8 @@ export const Railway = {
   CROSSING_FRAME_INTERVAL: 600,
 
   //線路
-  RAILWAY_WIDTH: 768,
-  RAILWAY_HEIGHT: 105,
+  RAILWAY_WIDTH: 384,
+  RAILWAY_HEIGHT: 192,
 
   //電車
   TRAIN_Y: 920,
@@ -21,8 +21,10 @@ export const Railway = {
   TRAIN_HEIGHT: 128,
   TRAIN_SPEED: 240,
 
+  TRAIN_OFFSET_Y:36,
+
   //踏切を押してから電車が発車するまで
-  START_DELAY: 1200,
+  START_DELAY: 500,
 
   shadow: {
     offsetY: 55,
@@ -35,40 +37,22 @@ export const Railway = {
 
 //線路の世界座標
 export const railwayMap = [
-  {
-    x: -50,
-    y: 3000,
-  },
-  {
-    x: -50 + Railway.RAILWAY_WIDTH * 1,
-    y: 3000,
-  },
-  {
-    x: -50 + Railway.RAILWAY_WIDTH * 2,
-    y: 3000,
-  },
-  {
-    x: -50 + Railway.RAILWAY_WIDTH * 3,
-    y: 3000,
-  },
-  {
-    x: -50 + Railway.RAILWAY_WIDTH * 4,
-    y: 3000,
-  },
-  {
-    x: -50 + Railway.RAILWAY_WIDTH * 5,
-    y: 3000,
-  },
-  {
-    x: -50 + Railway.RAILWAY_WIDTH * 6,
-    y: 3000,
-  },
-  {
-    x: -50 + Railway.RAILWAY_WIDTH * 7,
-    y: 3000,
-  },
+  { x: 0, y: 16 },
+  { x: 2, y: 16 },
+  { x: 4, y: 16 },
+  { x: 6, y: 16 },
+  { x: 8, y: 16 },
+  { x: 10, y: 16 },
+  { x: 12, y: 16 },
+  { x: 14, y: 16 },
+  { x: 16, y: 16 },
+  { x: 18, y: 16 },
+  { x: 20, y: 16 },
+  { x: 22, y: 16 },
+  { x: 24, y: 16 },
+  { x: 26, y: 16 },
+  { x: 28, y: 16 },
 ];
-
 
 //電車の乗客の情報だよ。
 export const TrainPassenger = {
