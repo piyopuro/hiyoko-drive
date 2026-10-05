@@ -1,8 +1,8 @@
 //電車と踏切の情報だよ。etVehicles
 export const Railway = {
   //踏切
-  CROSSING_X: 150,
-  CROSSING_Y: 1900,
+  CROSSING_X: 300,
+  CROSSING_Y: 2880,
   CROSSING_WIDTH: 128,
   CROSSING_HEIGHT: 192,
 
@@ -37,27 +37,35 @@ export const Railway = {
 export const railwayMap = [
   {
     x: -50,
-    y: 2000,
+    y: 3000,
   },
   {
     x: -50 + Railway.RAILWAY_WIDTH * 1,
-    y: 2000,
+    y: 3000,
   },
   {
     x: -50 + Railway.RAILWAY_WIDTH * 2,
-    y: 2000,
+    y: 3000,
   },
   {
     x: -50 + Railway.RAILWAY_WIDTH * 3,
-    y: 2000,
+    y: 3000,
   },
   {
     x: -50 + Railway.RAILWAY_WIDTH * 4,
-    y: 2000,
+    y: 3000,
   },
   {
     x: -50 + Railway.RAILWAY_WIDTH * 5,
-    y: 2000,
+    y: 3000,
+  },
+  {
+    x: -50 + Railway.RAILWAY_WIDTH * 6,
+    y: 3000,
+  },
+  {
+    x: -50 + Railway.RAILWAY_WIDTH * 7,
+    y: 3000,
   },
 ];
 

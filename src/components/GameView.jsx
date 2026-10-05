@@ -245,10 +245,9 @@ function GameView() {
 
   if (!trafficCarsRef.current) {
     trafficCarsRef.current = [
-      createTrafficCar("hiyokoCar01", 8, 3),
-      createTrafficCar("hiyokoCar02", 11, 1),
-      createTrafficCar("hiyokoCar03", 15, 7),
-    ];
+      createTrafficCar("hiyokoCar01", 10, 2),
+      createTrafficCar("hiyokoCar02", 19, 8),
+      createTrafficCar("hiyokoCar03", 21, 14),];
   }
 
   //ひよこ管理人

@@ -1,7 +1,7 @@
 //世界の情報
 export const Map = {
-  WIDTH: 3840,
-  HEIGHT: 2160,
+  WIDTH: 5760,
+  HEIGHT: 3264,
 };
 
 //画面の情報
