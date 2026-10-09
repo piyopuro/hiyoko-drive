@@ -3,10 +3,7 @@ import { VERSION } from "../version";
 import SoundManager from "../SoundManager";
 
 //ゲーム内共通
-import {
-  getRandomNumber,
-  clamp,
-} from "../game/utils/math";
+import { clamp } from "../game/utils/math";
 import {
   drawShadow,
   worldToScreen,
@@ -18,21 +15,10 @@ import {
   Map,
   Screen,
 } from "../game/constants/mapConfig";
-import {
-  MapGrid,
-  getTerrainAt,
-  terrainMaster,
-  findNearestWalkableCell,
-  getNearestPointInCell,
-} from "../game/constants/mapGrid";
 
 //道路関係者
-import {
-  roadMap,
-} from "../game/constants/roadConfig";
-import {
-  drawRoads,
-} from "../game/road/road";
+import { roadMap } from "../game/constants/roadConfig";
+import { drawRoads } from "../game/road/road";
 
 
 //車基本ステータス
@@ -58,33 +44,23 @@ import {
   createTrafficCar,
   drawTrafficCar,
   updateTrafficCar,
-  getRoadAtPosition,
   getTappedTrafficCar,
 } from "../game/trafficCar/trafficCar";
 
 //NPC関係者
 import {
-  NPCState,
   NPCBehaviorType,
   NPCDragConfig,
-  NPCFleeConfig,
-  NPCRecoverConfig,
   npcMaster,
 } from "../game/constants/npcMaster";
 import {
   createNPC,
-  isNPCJumping,
   startNPCJump,
   startNPCDrag,
   updateNPCDrag,
   endNPCDrag,
-  updateNPCDragRelease,
   drawNPC,
-  drawNPCs,
-  updateNPCDirection,
-  updateNPCAnimation,
-  chooseNextNPCTarget,
-  tryStartNPCFlee,
+  updateNPCs,
 } from "../game/npc/npc";
 //おうち関係者
 import {
@@ -108,9 +84,7 @@ import {
 } from "../game/effects/effect";
 
 //電車関係者
-import {
-  Railway,
-} from "../game/constants/railwayConfig";
+import { Railway } from "../game/constants/railwayConfig";
 import {
   drawRailways,
   drawCrossing,
@@ -126,15 +100,7 @@ import {
 } from "../game/railway/railway";
 
 
-
 //車アクション関係者
-import {
-  tryStartNPCBoarding,
-  updateNPCBoarding,
-  updateNPCRidingBus,
-  updateNPCExitingBus,
-} from "../game/vehicle/busAction";
-
 import {
   getFireFightHiyokoPosition,
   drawFireFightHiyoko,
@@ -369,6 +335,9 @@ function GameView() {
 
   //ポインター（指）管理人
   const activePointerIdRef = useRef(null);
+  // ひよこを摘まんでいる間、カメラを動かす指管理人
+  const secondaryPointerIdRef = useRef(null);
+  //無視する指管理人
   const ignoredPointerIdsRef = useRef(new Set());
 
   //カメラ座標管理人
@@ -395,6 +364,12 @@ function GameView() {
 
     edgePushX: 0,
     edgePushY: 0,
+  });
+  //カメラ移動管理人②
+  const secondaryCameraDragRef = useRef({
+    lastX: 0,
+    lastY: 0,
+    isDragging: false,
   });
 
 
@@ -793,397 +768,6 @@ function GameView() {
   }
 
 
-  //=================================
-  //　　　   ひよこたち監督
-  //=================================
-  function updateNPCs(now, deltaTime) {
-    for (const npc of npcsRef.current) {
-      const master = npcMaster[npc.type];
-
-      if (!master) {
-        continue;
-      }
-
-      //摘まんでいる間は通常のNPC処理を止める
-      if (npc.drag.isDragging) {
-        npc.frame = 0;
-        continue;
-      }
-
-      //慣性移動が終わったら、着地のぽよんを再生
-      if (npc.action.type === "dragLanding") {
-        const elapsed = now - npc.action.startTime;
-
-        if (elapsed >= npc.action.duration) {
-          npc.action.type = null;
-          npc.waitUntil = now + 120;
-        } else {
-          npc.frame = 0;
-          continue;
-        }
-      }
-
-      //摘まんで離した直後は少しだけ慣性で滑る
-      if (
-        npc.drag.releaseVelocityX !== 0 ||
-        npc.drag.releaseVelocityY !== 0
-      ) {
-        updateNPCDragRelease(npc, deltaTime);
-        npc.frame = 0;
-
-        if (
-          npc.drag.releaseVelocityX === 0 &&
-          npc.drag.releaseVelocityY === 0
-        ) {
-          npc.waitUntil = now + 120;
-        }
-
-        continue;
-      }
-
-
-      //ジャンプ中
-      if (isNPCJumping(npc)) {
-        const elapsed =
-          now - npc.action.startTime;
-
-        if (elapsed >= npc.action.duration) {
-          npc.action.type = null;
-
-          //歩行中なら歩行アニメーションを再開
-          if (npc.state === NPCState.WALK) {
-            npc.animationTimer = 0;
-            npc.animationFrameIndex = 0;
-            npc.frame = master.walkFrames[0];
-          } else {
-            npc.frame = 0;
-          }
-        } else {
-          //ジャンプ中はその場に止まる
-          npc.frame = 0;
-          continue;
-        }
-      }
-
-      const vehicle = vehiclesRef.current[0];
-
-      // -----------行動別の処理--------------
-
-
-      switch (npc.behavior.type) {
-
-        //=================================
-        // 通常
-        //=================================
-        case NPCBehaviorType.WANDER: {
-
-          //歩けない場所にいたら復帰モードへ
-          const terrain = getTerrainAt(npc.position.x, npc.position.y);
-
-          if (terrain !== null && !terrainMaster[terrain]?.canHiyokoWalk) {
-            const cell = findNearestWalkableCell(
-              npc.position.x,
-              npc.position.y
-            );
-
-            if (cell) {
-              npc.recoverTarget = getNearestPointInCell(
-                npc.position.x,
-                npc.position.y,
-                cell.x,
-                cell.y
-              );
-
-              npc.behavior.type = NPCBehaviorType.RECOVER;
-              npc.state = NPCState.WALK;
-              npc.path = [];
-              npc.pathIndex = 0;
-              break;
-            }
-          }
-
-          //走っている車が近くにいるか確認
-          tryStartNPCFlee(npc, now, vehicle);
-
-          //逃走が始まったらこのフレームの通常処理は終了
-          if (npc.behavior.type !== NPCBehaviorType.WANDER) {
-            break;
-          }
-
-
-          //バスを探す
-          tryStartNPCBoarding(npc, vehicle, now);
-
-          //バス乗車が始まったらこのフレームの通常処理は終了
-          if (npc.behavior.type !== NPCBehaviorType.WANDER) {
-            break;
-          }
-
-          //待機中
-          if (npc.state === NPCState.IDLE) {
-            npc.frame = 0;
-
-            if (now >= npc.waitUntil) {
-              chooseNextNPCTarget(npc);
-            }
-            break;
-          }
-
-
-          //通常歩行
-          const path = npc.path;
-
-          //経路がない場合は待機
-          if (!path || path.length === 0) {
-            npc.state = NPCState.IDLE;
-            npc.frame = 0;
-            npc.waitUntil = now + 300;
-            break;
-          }
-
-          //経路を歩き終わった
-          if (npc.pathIndex >= path.length) {
-            npc.state = NPCState.IDLE;
-            npc.frame = 0;
-
-            npc.waitUntil =
-              now +
-              getRandomNumber(
-                master.waitTime.min,
-                master.waitTime.max
-              );
-
-            break;
-          }
-
-          //今向かっているマス
-          const currentNode = path[npc.pathIndex];
-          const targetX = (currentNode.x + 0.5) * MapGrid.TILE_SIZE;
-          const targetY = (currentNode.y + 0.5) * MapGrid.TILE_SIZE;
-
-          const dx = targetX - npc.position.x;
-          const dy = targetY - npc.position.y;
-
-          const distance = Math.hypot(dx, dy);
-
-          updateNPCDirection(npc, dx, dy);
-
-          //現在のマスに到着
-          if (distance < 2) {
-            npc.position.x = targetX;
-            npc.position.y = targetY;
-
-            npc.pathIndex++;
-
-            break;
-          }
-
-          const moveDistance = master.speed * deltaTime;
-          if (moveDistance >= distance) {
-            npc.position.x = targetX;
-            npc.position.y = targetY;
-
-            npc.pathIndex++;
-          } else {
-            npc.position.x += (dx / distance) * moveDistance;
-            npc.position.y += (dy / distance) * moveDistance;
-          }
-
-          updateNPCAnimation(npc, master, deltaTime);
-
-          break;
-        }
-
-        //=================================
-        // 歩ける場所へ復帰
-        //=================================
-        case NPCBehaviorType.RECOVER: {
-          const target = npc.recoverTarget;
-
-          if (!target) {
-            npc.behavior.type = NPCBehaviorType.WANDER;
-            npc.state = NPCState.IDLE;
-            npc.frame = 0;
-            break;
-          }
-
-          //歩ける地形に入ったら復帰完了！
-          const terrain = getTerrainAt(npc.position.x, npc.position.y);
-
-          if (terrain !== null && terrainMaster[terrain]?.canHiyokoWalk) {
-            npc.behavior.type = NPCBehaviorType.WANDER;
-            npc.recoverTarget = null;
-            npc.path = [];
-            npc.pathIndex = 0;
-            npc.state = NPCState.IDLE;
-            npc.frame = 0;
-            npc.waitUntil = now + 300;
-            break;
-          }
-
-          const dx = target.x - npc.position.x;
-          const dy = target.y - npc.position.y;
-          const distance = Math.hypot(dx, dy);
-
-          updateNPCDirection(npc, dx, dy);
-
-          //目標地点に到達
-          if (distance < 2) {
-            npc.position.x = target.x;
-            npc.position.y = target.y;
-
-            //次のフレームで地形を再確認する
-            break;
-          }
-
-          //復帰専用の高速移動
-          const moveDistance = NPCRecoverConfig.SPEED * deltaTime;
-
-          if (moveDistance >= distance) {
-            npc.position.x = target.x;
-            npc.position.y = target.y;
-          } else {
-            npc.position.x += (dx / distance) * moveDistance;
-            npc.position.y += (dy / distance) * moveDistance;
-          }
-
-          updateNPCAnimation(npc, master, deltaTime);
-          break;
-
-        }
-
-        //=================================
-        // 逃走
-        //=================================
-        case NPCBehaviorType.FLEE: {
-          const dx = npc.target.x - npc.position.x;
-          const dy = npc.target.y - npc.position.y;
-          const distance = Math.hypot(dx, dy);
-
-          updateNPCDirection(npc, dx, dy);
-
-          //逃走先に到着
-          if (distance < 2) {
-            npc.position.x = npc.target.x;
-            npc.position.y = npc.target.y;
-
-            npc.behavior.type = NPCBehaviorType.WANDER;
-            npc.state = NPCState.IDLE;
-            npc.frame = 0;
-
-            npc.waitUntil =
-              now +
-              getRandomNumber(
-                300,
-                700
-              );
-
-            break;
-          }
-
-          const moveDistance = master.speed * NPCFleeConfig.FLEE_SPEED_MULTIPLIER * deltaTime;
-          if (moveDistance >= distance) {
-            npc.position.x = npc.target.x;
-            npc.position.y = npc.target.y;
-
-            npc.behavior.type = NPCBehaviorType.WANDER;
-            npc.state = NPCState.IDLE;
-            npc.frame = 0;
-
-            npc.waitUntil =
-              now +
-              getRandomNumber(
-                300,
-                700
-              );
-
-          } else {
-            npc.position.x += (dx / distance) * moveDistance;
-            npc.position.y += (dy / distance) * moveDistance;
-
-            updateNPCAnimation(
-              npc,
-              master,
-              deltaTime
-            );
-          }
-          break;
-        }
-
-        //=================================
-        // バスに乗るところ
-        //=================================
-        case NPCBehaviorType.BOARD_BUS: {
-
-
-          //バスに乗ってたらbreak
-          const boarded =
-            updateNPCBoarding(
-              npc,
-              vehicle,
-              now,
-              soundManagerRef.current,
-              npcsRef.current
-            );
-          if (boarded) {
-            break;
-          }
-
-          //バスのドアへ向かう
-          const dx = npc.target.x - npc.position.x;
-          const dy = npc.target.y - npc.position.y;
-          const distance = Math.hypot(dx, dy);
-
-          if (distance > 0) {
-            updateNPCDirection(npc, dx, dy);
-
-            const moveDistance = master.speed * deltaTime;
-
-            if (moveDistance >= distance) {
-              npc.position.x = npc.target.x;
-              npc.position.y = npc.target.y;
-            } else {
-              npc.position.x += (dx / distance) * moveDistance;
-              npc.position.y += (dy / distance) * moveDistance;
-            }
-
-            updateNPCAnimation(npc, master, deltaTime);
-          }
-
-          break;
-        }
-
-        //=================================
-        // バスに乗っている
-        //=================================
-        case NPCBehaviorType.RIDE_BUS: {
-
-          updateNPCRidingBus(npc, vehicle, now);
-          break;
-
-        }
-
-        //=================================
-        // バスから降りる
-        //=================================
-        case NPCBehaviorType.EXIT_BUS: {
-
-          const exitedBus = updateNPCExitingBus(
-            npc,
-            vehicle,
-            now,
-            soundManagerRef.current
-          );
-
-          if (exitedBus) {
-            startNPCJump(npc, now);
-          }
-          break;
-        }
-      }
-    }
-  }
-
 
   //=================================
   //　　　       入力
@@ -1203,9 +787,41 @@ function GameView() {
       return;
     }
 
-    // すでに別の指が操作中なら無視
+
+    // すでに別の指が操作中の場合
     if (activePointerIdRef.current !== null) {
-      // 2本目以降は完全に無視
+      const npcPointer = npcPointerRef.current;
+
+      // ひよこを摘まんでいる間だけ、2本目の指を許可
+      if (
+        npcPointer.npc &&
+        npcPointer.isDragging &&
+        npcPointer.pointerId === activePointerIdRef.current &&
+        secondaryPointerIdRef.current === null
+      ) {
+        const x = event.nativeEvent.offsetX / scale;
+        const y = event.nativeEvent.offsetY / scale;
+
+        // 2本目の指をカメラ操作用として登録
+        secondaryPointerIdRef.current = event.pointerId;
+
+        secondaryCameraDragRef.current = {
+          lastX: x,
+          lastY: y,
+          isDragging: false,
+        };
+
+        // 指がキャンバスの外へ動いても追跡できるようにする
+        try {
+          event.currentTarget.setPointerCapture(event.pointerId);
+        } catch (error) {
+          // キャプチャできなかった場合
+        }
+
+        return;
+      }
+
+      // それ以外の2本目以降の指は無視
       ignoredPointerIdsRef.current.add(event.pointerId);
       return;
     }
@@ -1333,6 +949,50 @@ function GameView() {
 
   //指、動かした。
   function handlePointerMove(event) {
+
+    //ひよこつまみ中 2本目の指でカメラを動かす
+    if (event.pointerId === secondaryPointerIdRef.current) {
+      const x = event.nativeEvent.offsetX / scale;
+      const y = event.nativeEvent.offsetY / scale;
+
+      const drag = secondaryCameraDragRef.current;
+
+      const deltaX = x - drag.lastX;
+      const deltaY = y - drag.lastY;
+
+      if (deltaX !== 0 || deltaY !== 0) {
+        // 指の移動に合わせてカメラを動かす
+        moveCamera(-deltaX, -deltaY);
+
+        drag.isDragging = true;
+        cameraDragRef.current.wasDragging = true;
+
+        // カメラが動いても、ひよこを1本目の指の下に保つ
+        const npcPointer = npcPointerRef.current;
+
+        if (npcPointer.npc && npcPointer.isDragging) {
+          const worldPosition = screenToWorld(
+            npcPointer.lastX,
+            npcPointer.lastY,
+            cameraRef.current
+          );
+
+          updateNPCDrag(
+            npcPointer.npc,
+            worldPosition.x,
+            worldPosition.y,
+            performance.now()
+          );
+        }
+      }
+
+      drag.lastX = x;
+      drag.lastY = y;
+
+      return;
+    }
+
+
     // 無視対象の指
     if (ignoredPointerIdsRef.current.has(event.pointerId)) {
       return;
@@ -1486,6 +1146,32 @@ function GameView() {
 
   //指、離した。（キャンセル含む）
   function handlePointerUp(event) {
+
+    //ひよこつまみ中、2本目の指を離した場合
+    if (event.pointerId === secondaryPointerIdRef.current) {
+      const drag = secondaryCameraDragRef.current;
+
+      if (drag.isDragging) {
+        cameraDragRef.current.wasDragging = true;
+      }
+
+      secondaryPointerIdRef.current = null;
+
+      secondaryCameraDragRef.current = {
+        lastX: 0,
+        lastY: 0,
+        isDragging: false,
+      };
+
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch (error) {
+        // すでにキャプチャが解除されている場合など
+      }
+
+      return;
+    }
+
     // 2本目以降の指なら何もしない
     if (
       ignoredPointerIdsRef.current.has(event.pointerId)
@@ -1509,11 +1195,7 @@ function GameView() {
       activePointerIdRef.current === event.pointerId;
 
     //ひよこを摘まんでいる指かどうか確認
-    if (
-      npcPointer.npc &&
-      npcPointer.pointerId === event.pointerId
-    ) {
-
+    if (npcPointer.npc && npcPointer.pointerId === event.pointerId) {
       //タイマー初期化
       if (npcPointer.timerId !== null) {
         clearTimeout(npcPointer.timerId);
@@ -1535,10 +1217,8 @@ function GameView() {
 
         //お家の中なら
         if (isInsideHouse) {
-
           // ひよこお片付け成功！       
           const now = performance.now();
-
           //おかたづけ
           npcsRef.current = npcsRef.current.filter(
             (item) => item !== npcPointer.npc
@@ -1552,10 +1232,7 @@ function GameView() {
             )
           );
           //ぽよん
-          startHiyokoHousePounce(
-            hiyokoHouseRef.current,
-            now
-          );
+          startHiyokoHousePounce(hiyokoHouseRef.current, now);
           // お家にひよこを1羽追加
           hiyokoHouseRef.current.hiyokoCount++;
           //おうちの見た目変更
@@ -1583,6 +1260,20 @@ function GameView() {
       npcPointer.timerId = null;
       npcPointer.isDragging = false;
 
+      // 2本目の指が残っていたら解除
+      if (secondaryPointerIdRef.current !== null) {
+        try {
+          event.currentTarget.releasePointerCapture(secondaryPointerIdRef.current);
+        } catch {
+          // すでに解除されている場合
+        }
+      }
+      secondaryPointerIdRef.current = null;
+      secondaryCameraDragRef.current = {
+        lastX: 0,
+        lastY: 0,
+        isDragging: false,
+      };
       activePointerIdRef.current = null;  //操作している指情報を消去
       ignoredPointerIdsRef.current.clear();   //無視している指情報を消去
 
@@ -1591,7 +1282,6 @@ function GameView() {
       } catch {
         // Pointer Capture非対応時はそのまま続行
       }
-
       return;
     }
 
@@ -2663,7 +2353,13 @@ function GameView() {
     else {
       updateCameraInertia();
       updateVehicle(now, deltaTime);
-      updateNPCs(now, deltaTime);
+      updateNPCs(
+        npcsRef.current,
+        vehiclesRef.current,
+        now,
+        deltaTime,
+        soundManagerRef.current
+      );
       trafficCarsRef.current.forEach((car) => {
         updateTrafficCar(car, now, deltaTime);
       });
