@@ -8,19 +8,18 @@ import {
   NPCDragConfig,
   NPCWalkArea,
 } from "../constants/npcMaster";
-
 import {
   getRandomNumber,
   clamp,
 } from "../utils/math";
-
+import {
+  findWalkablePath,
+} from "../constants/mapGrid";
 import {
   drawShadow,
   worldToScreen,
 } from "../utils/draw";
 import { State } from "../constants/vehicleMaster";
-
-//================================================
 
 
 //======================================
@@ -48,14 +47,12 @@ export function createNPC(type, startX, startY) {
     id: crypto.randomUUID(),
 
     type,
-    position: {
-      x,
-      y,
-    },
-    target: {
-      x,
-      y,
-    },
+    position: { x, y, },
+    target: { x, y, },
+
+    path: [],
+    pathIndex: 0,
+    recoverTarget: null,
 
     direction: NPCDirection.FRONT,
     state: NPCState.IDLE,
@@ -621,15 +618,32 @@ export function updateNPCAnimation(npc, master, deltaTime) {
 export function chooseNextNPCTarget(npc) {
   const master = npcMaster[npc.type];
 
-  npc.target.x = getRandomNumber(
+  const targetX = getRandomNumber(
     NPCWalkArea.LEFT,
     NPCWalkArea.RIGHT
   );
-
-  npc.target.y = getRandomNumber(
+  const targetY = getRandomNumber(
     NPCWalkArea.TOP,
     NPCWalkArea.BOTTOM
   );
+
+  const path = findWalkablePath(
+    npc.position.x,
+    npc.position.y,
+    targetX,
+    targetY
+  );
+
+  //歩ける経路が見つからなかった
+  if (!path) {
+    return;
+  }
+
+  npc.target.x = targetX;
+  npc.target.y = targetY;
+
+  npc.path = path;
+  npc.pathIndex = 0;
 
   npc.state = NPCState.WALK;
   npc.animationTimer = 0;

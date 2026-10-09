@@ -18,7 +18,13 @@ import {
   Map,
   Screen,
 } from "../game/constants/mapConfig";
-
+import {
+  MapGrid,
+  getTerrainAt,
+  terrainMaster,
+  findNearestWalkableCell,
+  getNearestPointInCell,
+} from "../game/constants/mapGrid";
 
 //道路関係者
 import {
@@ -62,6 +68,7 @@ import {
   NPCBehaviorType,
   NPCDragConfig,
   NPCFleeConfig,
+  NPCRecoverConfig,
   npcMaster,
 } from "../game/constants/npcMaster";
 import {
@@ -859,115 +866,321 @@ function GameView() {
       }
 
       const vehicle = vehiclesRef.current[0];
-      //バスから降りようね
-      if (
-        npc.behavior.type === NPCBehaviorType.EXIT_BUS) {
 
-        const exitedBus = updateNPCExitingBus(
-          npc,
-          vehicle,
-          now,
-          soundManagerRef.current
-        );
+      // -----------行動別の処理--------------
 
-        if (exitedBus) {
-          startNPCJump(npc, now);
+
+      switch (npc.behavior.type) {
+
+        //=================================
+        // 通常
+        //=================================
+        case NPCBehaviorType.WANDER: {
+
+          //歩けない場所にいたら復帰モードへ
+          const terrain = getTerrainAt(npc.position.x, npc.position.y);
+
+          if (terrain !== null && !terrainMaster[terrain]?.canHiyokoWalk) {
+            const cell = findNearestWalkableCell(
+              npc.position.x,
+              npc.position.y
+            );
+
+            if (cell) {
+              npc.recoverTarget = getNearestPointInCell(
+                npc.position.x,
+                npc.position.y,
+                cell.x,
+                cell.y
+              );
+
+              npc.behavior.type = NPCBehaviorType.RECOVER;
+              npc.state = NPCState.WALK;
+              npc.path = [];
+              npc.pathIndex = 0;
+              break;
+            }
+          }
+
+          //走っている車が近くにいるか確認
+          tryStartNPCFlee(npc, now, vehicle);
+
+          //逃走が始まったらこのフレームの通常処理は終了
+          if (npc.behavior.type !== NPCBehaviorType.WANDER) {
+            break;
+          }
+
+
+          //バスを探す
+          tryStartNPCBoarding(npc, vehicle, now);
+
+          //バス乗車が始まったらこのフレームの通常処理は終了
+          if (npc.behavior.type !== NPCBehaviorType.WANDER) {
+            break;
+          }
+
+          //待機中
+          if (npc.state === NPCState.IDLE) {
+            npc.frame = 0;
+
+            if (now >= npc.waitUntil) {
+              chooseNextNPCTarget(npc);
+            }
+            break;
+          }
+
+
+          //通常歩行
+          const path = npc.path;
+
+          //経路がない場合は待機
+          if (!path || path.length === 0) {
+            npc.state = NPCState.IDLE;
+            npc.frame = 0;
+            npc.waitUntil = now + 300;
+            break;
+          }
+
+          //経路を歩き終わった
+          if (npc.pathIndex >= path.length) {
+            npc.state = NPCState.IDLE;
+            npc.frame = 0;
+
+            npc.waitUntil =
+              now +
+              getRandomNumber(
+                master.waitTime.min,
+                master.waitTime.max
+              );
+
+            break;
+          }
+
+          //今向かっているマス
+          const currentNode = path[npc.pathIndex];
+          const targetX = (currentNode.x + 0.5) * MapGrid.TILE_SIZE;
+          const targetY = (currentNode.y + 0.5) * MapGrid.TILE_SIZE;
+
+          const dx = targetX - npc.position.x;
+          const dy = targetY - npc.position.y;
+
+          const distance = Math.hypot(dx, dy);
+
+          updateNPCDirection(npc, dx, dy);
+
+          //現在のマスに到着
+          if (distance < 2) {
+            npc.position.x = targetX;
+            npc.position.y = targetY;
+
+            npc.pathIndex++;
+
+            break;
+          }
+
+          const moveDistance = master.speed * deltaTime;
+          if (moveDistance >= distance) {
+            npc.position.x = targetX;
+            npc.position.y = targetY;
+
+            npc.pathIndex++;
+          } else {
+            npc.position.x += (dx / distance) * moveDistance;
+            npc.position.y += (dy / distance) * moveDistance;
+          }
+
+          updateNPCAnimation(npc, master, deltaTime);
+
+          break;
         }
 
-        continue;
-      }
+        //=================================
+        // 歩ける場所へ復帰
+        //=================================
+        case NPCBehaviorType.RECOVER: {
+          const target = npc.recoverTarget;
 
-      //バスに乗ってるね
-      if (npc.behavior.type === NPCBehaviorType.RIDE_BUS) {
-        updateNPCRidingBus(npc, vehicle, now);
-        continue;
-      }
+          if (!target) {
+            npc.behavior.type = NPCBehaviorType.WANDER;
+            npc.state = NPCState.IDLE;
+            npc.frame = 0;
+            break;
+          }
 
-      //バスに乗ったかな？
-      if (npc.behavior.type === NPCBehaviorType.BOARD_BUS) {
-        const boarded =
-          updateNPCBoarding(
+          //歩ける地形に入ったら復帰完了！
+          const terrain = getTerrainAt(npc.position.x, npc.position.y);
+
+          if (terrain !== null && terrainMaster[terrain]?.canHiyokoWalk) {
+            npc.behavior.type = NPCBehaviorType.WANDER;
+            npc.recoverTarget = null;
+            npc.path = [];
+            npc.pathIndex = 0;
+            npc.state = NPCState.IDLE;
+            npc.frame = 0;
+            npc.waitUntil = now + 300;
+            break;
+          }
+
+          const dx = target.x - npc.position.x;
+          const dy = target.y - npc.position.y;
+          const distance = Math.hypot(dx, dy);
+
+          updateNPCDirection(npc, dx, dy);
+
+          //目標地点に到達
+          if (distance < 2) {
+            npc.position.x = target.x;
+            npc.position.y = target.y;
+
+            //次のフレームで地形を再確認する
+            break;
+          }
+
+          //復帰専用の高速移動
+          const moveDistance = NPCRecoverConfig.SPEED * deltaTime;
+
+          if (moveDistance >= distance) {
+            npc.position.x = target.x;
+            npc.position.y = target.y;
+          } else {
+            npc.position.x += (dx / distance) * moveDistance;
+            npc.position.y += (dy / distance) * moveDistance;
+          }
+
+          updateNPCAnimation(npc, master, deltaTime);
+          break;
+
+        }
+
+        //=================================
+        // 逃走
+        //=================================
+        case NPCBehaviorType.FLEE: {
+          const dx = npc.target.x - npc.position.x;
+          const dy = npc.target.y - npc.position.y;
+          const distance = Math.hypot(dx, dy);
+
+          updateNPCDirection(npc, dx, dy);
+
+          //逃走先に到着
+          if (distance < 2) {
+            npc.position.x = npc.target.x;
+            npc.position.y = npc.target.y;
+
+            npc.behavior.type = NPCBehaviorType.WANDER;
+            npc.state = NPCState.IDLE;
+            npc.frame = 0;
+
+            npc.waitUntil =
+              now +
+              getRandomNumber(
+                300,
+                700
+              );
+
+            break;
+          }
+
+          const moveDistance = master.speed * NPCFleeConfig.FLEE_SPEED_MULTIPLIER * deltaTime;
+          if (moveDistance >= distance) {
+            npc.position.x = npc.target.x;
+            npc.position.y = npc.target.y;
+
+            npc.behavior.type = NPCBehaviorType.WANDER;
+            npc.state = NPCState.IDLE;
+            npc.frame = 0;
+
+            npc.waitUntil =
+              now +
+              getRandomNumber(
+                300,
+                700
+              );
+
+          } else {
+            npc.position.x += (dx / distance) * moveDistance;
+            npc.position.y += (dy / distance) * moveDistance;
+
+            updateNPCAnimation(
+              npc,
+              master,
+              deltaTime
+            );
+          }
+          break;
+        }
+
+        //=================================
+        // バスに乗るところ
+        //=================================
+        case NPCBehaviorType.BOARD_BUS: {
+
+
+          //バスに乗ってたらbreak
+          const boarded =
+            updateNPCBoarding(
+              npc,
+              vehicle,
+              now,
+              soundManagerRef.current,
+              npcsRef.current
+            );
+          if (boarded) {
+            break;
+          }
+
+          //バスのドアへ向かう
+          const dx = npc.target.x - npc.position.x;
+          const dy = npc.target.y - npc.position.y;
+          const distance = Math.hypot(dx, dy);
+
+          if (distance > 0) {
+            updateNPCDirection(npc, dx, dy);
+
+            const moveDistance = master.speed * deltaTime;
+
+            if (moveDistance >= distance) {
+              npc.position.x = npc.target.x;
+              npc.position.y = npc.target.y;
+            } else {
+              npc.position.x += (dx / distance) * moveDistance;
+              npc.position.y += (dy / distance) * moveDistance;
+            }
+
+            updateNPCAnimation(npc, master, deltaTime);
+          }
+
+          break;
+        }
+
+        //=================================
+        // バスに乗っている
+        //=================================
+        case NPCBehaviorType.RIDE_BUS: {
+
+          updateNPCRidingBus(npc, vehicle, now);
+          break;
+
+        }
+
+        //=================================
+        // バスから降りる
+        //=================================
+        case NPCBehaviorType.EXIT_BUS: {
+
+          const exitedBus = updateNPCExitingBus(
             npc,
             vehicle,
             now,
-            soundManagerRef.current,
-            npcsRef.current
-          );
-        if (boarded) {
-          continue;
-        }
-      }
-
-      //走っている車が近くにいるか確認
-      tryStartNPCFlee(npc, now, vehicle);
-
-      //通常状態のときだけバスを探す
-      if (npc.behavior.type === NPCBehaviorType.WANDER) {
-        tryStartNPCBoarding(npc, vehiclesRef.current[0], now);
-      }
-
-      if (npc.state === NPCState.IDLE) {
-        npc.frame = 0;
-
-        if (now >= npc.waitUntil) {
-          chooseNextNPCTarget(npc);
-        }
-        continue;
-      }
-
-      const dx = npc.target.x - npc.position.x;
-      const dy = npc.target.y - npc.position.y;
-
-      const distance = Math.hypot(dx, dy);
-
-      updateNPCDirection(npc, dx, dy);
-
-      if (distance < 2) {
-        npc.position.x = npc.target.x;
-        npc.position.y = npc.target.y;
-
-        const wasFleeing =
-          npc.behavior.type === NPCBehaviorType.FLEE;
-
-        npc.behavior.type = NPCBehaviorType.WANDER;
-        npc.state = NPCState.IDLE;
-        npc.frame = 0;
-
-        npc.waitUntil = now +
-          (
-            wasFleeing
-              ? getRandomNumber(300, 700)
-              : getRandomNumber(
-                master.waitTime.min,
-                master.waitTime.max
-              )
+            soundManagerRef.current
           );
 
-        continue;
+          if (exitedBus) {
+            startNPCJump(npc, now);
+          }
+          break;
+        }
       }
-
-      const speed =
-        npc.behavior.type === NPCBehaviorType.FLEE
-          ? master.speed *
-          NPCFleeConfig.FLEE_SPEED_MULTIPLIER
-          : master.speed;
-
-      const moveDistance =
-        speed * deltaTime;
-
-      if (moveDistance >= distance) {
-        npc.position.x = npc.target.x;
-        npc.position.y = npc.target.y;
-      } else {
-        npc.position.x += (dx / distance) * moveDistance;
-        npc.position.y += (dy / distance) * moveDistance;
-      }
-
-      updateNPCAnimation(
-        npc,
-        master,
-        deltaTime
-      );
     }
   }
 

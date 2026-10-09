@@ -26,6 +26,7 @@ export const NPCBehaviorType = {
   BOARD_BUS: "boardBus",
   RIDE_BUS: "rideBus",
   EXIT_BUS: "exitBus",
+  RECOVER: "recover",
 };
 
 export const NPCDragConfig = {
@@ -42,9 +43,13 @@ export const NPCDragConfig = {
 };
 
 export const NPCFleeConfig = {
-  AVOID_DISTANCE: 170,       //この距離までバスが来たら逃げる
-  FLEE_DISTANCE: 220,        //どれくらい先まで逃げるか
-  FLEE_SPEED_MULTIPLIER: 2.5, //普段の何倍で走るか
+  AVOID_DISTANCE: 200,       //この距離までバスが来たら逃げる
+  FLEE_DISTANCE: 300,        //どれくらい先まで逃げるか
+  FLEE_SPEED_MULTIPLIER: 3, //普段の何倍で走るか
+};
+
+export const NPCRecoverConfig = {
+  SPEED: 200,
 };
 
 export const NPCWalkArea = {
@@ -66,7 +71,7 @@ export const npcMaster = {
     drawWidth: 64,
     drawHeight: 64,
 
-    speed: 75,
+    speed: 75,//75
 
     animationInterval: 180,
 
