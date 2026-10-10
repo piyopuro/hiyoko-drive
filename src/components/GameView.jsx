@@ -875,10 +875,8 @@ function GameView() {
           return;
         }
 
-        const currentX =
-          current.lastX ?? x;
-        const currentY =
-          current.lastY ?? y;
+        const currentX = current.lastX ?? x;
+        const currentY = current.lastY ?? y;
         const currentWorld = screenToWorld(
           currentX,
           currentY,
@@ -912,6 +910,8 @@ function GameView() {
         velocityX: 0,
         velocityY: 0,
         wasDragging: false,
+        edgePushX: 0,
+        edgePushY: 0,
       };
 
       try {
@@ -1053,6 +1053,55 @@ function GameView() {
           worldPosition.y,
           performance.now()
         );
+
+        // 画面端スクロール用：指の位置を記録
+        const edgeSize = 220;
+        const fastEdgeSize = 170;
+        const superFastEdgeSize = 100;
+        const canvas = canvasRef.current;
+
+        if (canvas) {
+          // 左右
+          if (x < superFastEdgeSize) {
+            cameraDragRef.current.edgePushX = -3;
+          } else if (x < fastEdgeSize) {
+            cameraDragRef.current.edgePushX = -2;
+          } else if (x < edgeSize) {
+            cameraDragRef.current.edgePushX = -1;
+          } else if (x > canvas.width - superFastEdgeSize) {
+            cameraDragRef.current.edgePushX = 3;
+          } else if (x > canvas.width - fastEdgeSize) {
+            cameraDragRef.current.edgePushX = 2;
+          } else if (x > canvas.width - edgeSize) {
+            cameraDragRef.current.edgePushX = 1;
+          } else {
+            cameraDragRef.current.edgePushX = 0;
+          }
+
+          // 上下
+          if (y < superFastEdgeSize) {
+            cameraDragRef.current.edgePushY = -3;
+          } else if (y < fastEdgeSize) {
+            cameraDragRef.current.edgePushY = -2;
+          } else if (y < edgeSize) {
+            cameraDragRef.current.edgePushY = -1;
+          } else if (y > canvas.height - superFastEdgeSize) {
+            cameraDragRef.current.edgePushY = 3;
+          } else if (y > canvas.height - fastEdgeSize) {
+            cameraDragRef.current.edgePushY = 2;
+          } else if (y > canvas.height - edgeSize) {
+            cameraDragRef.current.edgePushY = 1;
+          } else {
+            cameraDragRef.current.edgePushY = 0;
+          }
+        }
+        /*画面端(edgeSize)に入ったらその方向を記録。
+        左端 → edgePushX = -1
+        右端 → edgePushX = 1
+        上端 → edgePushY = -1
+        下端 → edgePushY = 1
+        端から離れた → 0
+        */
         return;
       }
 
@@ -2352,6 +2401,49 @@ function GameView() {
     //通常時
     else {
       updateCameraInertia();
+
+      // ひよこを摘まんでいる間の端スクロール
+      const npcPointer = npcPointerRef.current;
+      const drag = cameraDragRef.current;
+
+      if (
+        npcPointer.npc &&
+        npcPointer.isDragging &&
+        (
+          [-3, -2, -1, 1, 2, 3].includes(drag.edgePushX) ||
+          [-3, -2, -1, 1, 2, 3].includes(drag.edgePushY))
+      ) {
+
+        console.log("端スクロール開始", {
+          edgePushX: drag.edgePushX,
+          edgePushY: drag.edgePushY,
+        });
+
+        // 端スクロールの速度（1秒あたりの移動量）
+        const edgeScrollSpeed = 100;
+
+        // 指がある端の方向へカメラを移動
+        moveCamera(
+          drag.edgePushX * edgeScrollSpeed * deltaTime,
+          drag.edgePushY * edgeScrollSpeed * deltaTime
+        );
+
+        // 移動後のカメラに合わせて、ひよこの位置を更新
+        const worldPosition = screenToWorld(
+          npcPointer.lastX,
+          npcPointer.lastY,
+          cameraRef.current
+        );
+
+        updateNPCDrag(
+          npcPointer.npc,
+          worldPosition.x,
+          worldPosition.y,
+          now
+        );
+      }
+
+
       updateVehicle(now, deltaTime);
       updateNPCs(
         npcsRef.current,
