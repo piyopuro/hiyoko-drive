@@ -371,6 +371,10 @@ function GameView() {
     lastY: 0,
     isDragging: false,
   });
+  // 車が停止したあとのカメラ中央寄せ管理人
+  const vehicleCameraRef = useRef({
+    isCentering: false,
+  });
 
 
   // ======== システムマネージャーさんたち ========
@@ -695,7 +699,15 @@ function GameView() {
 
       updateDirection(vehicle, dx, dy);
       updateAnimation(vehicle, animationTimerRef, deltaTime);
+
+      // 位置更新前の車の状態を記録
+      const wasMoving = vehicle.state === State.MOVE;
       updatePosition(vehicle, master, dx, dy, distance, deltaTime);
+      // 走行中から停止に変わった瞬間、中央寄せを開始
+      if (wasMoving && vehicle.state === State.STOP) {
+        vehicleCameraRef.current.isCentering = true;
+      }
+
       updateColorPuddleCollision(
         vehicle,
         colorPuddlesRef.current,
@@ -703,11 +715,7 @@ function GameView() {
         inkSplashesRef.current,
         soundManagerRef.current
       );
-      updateInkSplashes(
-        inkSplashesRef.current,
-        deltaTime,
-        now
-      );
+      updateInkSplashes(inkSplashesRef.current, deltaTime, now);
       updateEffect(vehicle, now);
       updateFireFightAction(vehicle, now, soundManagerRef.current);
       updatePoliceCarAction(vehicle, now);
@@ -1139,27 +1147,18 @@ function GameView() {
     if (!event.buttons) {
       return;
     }
-
-    if (
-      drag.startX == null ||
-      drag.startY == null
-    ) {
+    if (drag.startX == null || drag.startY == null) {
       return;
     }
 
-    const deltaX =
-      x - drag.lastX;
-
-    const deltaY =
-      y - drag.lastY;
-
+    const deltaX = x - drag.lastX;
+    const deltaY = y - drag.lastY;
 
     //動かした距離
-    const distance =
-      Math.hypot(
-        x - drag.startX,
-        y - drag.startY
-      );
+    const distance = Math.hypot(
+      x - drag.startX,
+      y - drag.startY
+    );
 
     //動かした距離が短い時はたっぷ判定、一定以上動いたらドラッグ開始
     if (!drag.isDragging) {
@@ -1173,6 +1172,9 @@ function GameView() {
 
         return;
       }
+
+      // 手動でカメラを動かすなら、車の中央寄せを解除
+      vehicleCameraRef.current.isCentering = false;
 
       drag.isDragging = true;
       drag.wasDragging = true;
@@ -1836,6 +1838,8 @@ function GameView() {
 
 
 
+    // 車が動き始めたら、カメラ中央寄せを解除
+    vehicleCameraRef.current.isCentering = false;
 
     setVehicles((prevVehicles) => {
       const newVehicles = [...prevVehicles]; //newVehicle君に今の値をこぴ
@@ -2392,33 +2396,54 @@ function GameView() {
     //たまごイベント中？
     if (eggEvent.active) {
       eggEvent.effectParticles =
-        updateEggEffectParticles(
-          now,
-          deltaTime,
-          eggEvent.effectParticles
-        );
+        updateEggEffectParticles(now, deltaTime, eggEvent.effectParticles);
     }
     //通常時
     else {
+
       updateCameraInertia();
+
+      //車が停止したら車を画面中央へ寄せる
+      if (vehicleCameraRef.current.isCentering) {
+        const vehicle = vehiclesRef.current[0];
+
+        if (vehicle && vehicle.state === State.STOP) {
+          const camera = cameraRef.current;
+
+          // 車を画面中央に置くためのカメラ座標
+          const targetX = vehicle.position.x - Screen.WIDTH / 2;
+          const targetY = vehicle.position.y - Screen.HEIGHT / 2;
+
+          // 現在位置との差
+          const dx = targetX - camera.x;
+          const dy = targetY - camera.y;
+
+          // 十分近づいたら終了
+          if (Math.abs(dx) < 1 && Math.abs(dy) < 1) {
+            moveCamera(dx, dy);
+            vehicleCameraRef.current.isCentering = false;
+          } else {
+            // ゆっくり中央へ移動
+            const followSpeed = 3;
+
+            moveCamera(
+              dx * followSpeed * deltaTime,
+              dy * followSpeed * deltaTime
+            );
+          }
+        } else {
+          vehicleCameraRef.current.isCentering = false;
+        }
+      }
 
       // ひよこを摘まんでいる間の端スクロール
       const npcPointer = npcPointerRef.current;
       const drag = cameraDragRef.current;
 
-      if (
-        npcPointer.npc &&
-        npcPointer.isDragging &&
-        (
-          [-3, -2, -1, 1, 2, 3].includes(drag.edgePushX) ||
-          [-3, -2, -1, 1, 2, 3].includes(drag.edgePushY))
+      if (npcPointer.npc && npcPointer.isDragging && (
+        [-3, -2, -1, 1, 2, 3].includes(drag.edgePushX) ||
+        [-3, -2, -1, 1, 2, 3].includes(drag.edgePushY))
       ) {
-
-        console.log("端スクロール開始", {
-          edgePushX: drag.edgePushX,
-          edgePushY: drag.edgePushY,
-        });
-
         // 端スクロールの速度（1秒あたりの移動量）
         const edgeScrollSpeed = 100;
 
