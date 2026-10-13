@@ -1,4 +1,4 @@
-import { roadMap } from "./roadConfig.js";
+import { Road, roadMap } from "./roadConfig.js";
 import { Railway, railwayMap } from "./railwayConfig.js";
 
 export const MapGrid = {
@@ -414,6 +414,197 @@ export function getNearestPointInCell(startX, startY, gridX, gridY) {
     };
 }
 
+
+//=================================
+//近くの道路（の中心）を探す係
+//=================================
+export function findNearestRoadCenter(x, y) {
+    let nearestRoad = null;
+    let minDistanceSquared = Infinity;
+
+    for (const road of roadMap) {
+
+        // 道路の中心座標を求める
+        const centerX = (road.x + 0.5) * MapGrid.TILE_SIZE;
+        const centerY = (road.y + 0.5) * MapGrid.TILE_SIZE;
+
+        // 指定座標から道路の中心までの距離
+        const dx = centerX - x;
+        const dy = centerY - y;
+        const distanceSquared = dx * dx + dy * dy;
+
+        // 今までで最も近い道路なら記録
+        if (distanceSquared < minDistanceSquared) {
+            minDistanceSquared = distanceSquared;
+
+            nearestRoad = {
+                x: centerX,
+                y: centerY,
+                gridX: road.x,
+                gridY: road.y,
+                type: road.type,
+            };
+        }
+    }
+
+    return nearestRoad;
+}
+
+
+//=================================
+//道路に沿った道案内をする係
+//=================================
+export function findRoadPath(startX, startY, targetX, targetY) {
+    // ワールド座標をグリッド座標に変換
+    const startGridX = Math.floor(startX / MapGrid.TILE_SIZE);
+    const startGridY = Math.floor(startY / MapGrid.TILE_SIZE);
+    const targetGridX = Math.floor(targetX / MapGrid.TILE_SIZE);
+    const targetGridY = Math.floor(targetY / MapGrid.TILE_SIZE);
+
+    // 道路を座標から検索できるようにする
+    const roadGrid = new Map();
+
+    for (const road of roadMap) {
+        const key = `${road.x},${road.y}`;
+
+        // 同じ座標に重複登録があっても、
+        // 最初の道路情報を保持する
+        if (!roadGrid.has(key)) {
+            roadGrid.set(key, road);
+        }
+    }
+
+    // 開始地点と目的地の道路を取得
+    const startRoad = roadGrid.get(`${startGridX},${startGridY}`);
+    const targetRoad = roadGrid.get(`${targetGridX},${targetGridY}`);
+
+    // 道路上にいなければ経路を探せない
+    if (!startRoad || !targetRoad) {
+        return null;
+    }
+
+    // 同じ道路マスなら、その中心だけを返す
+    if (startGridX === targetGridX && startGridY === targetGridY) {
+        return [{
+            x: (startGridX + 0.5) * MapGrid.TILE_SIZE,
+            y: (startGridY + 0.5) * MapGrid.TILE_SIZE,
+        }];
+    }
+
+    // 方向と、その反対側の方向
+    const directions = [
+        {
+            name: "right",
+            opposite: "left",
+            dx: 1,
+            dy: 0,
+        },
+        {
+            name: "left",
+            opposite: "right",
+            dx: -1,
+            dy: 0,
+        },
+        {
+            name: "down",
+            opposite: "up",
+            dx: 0,
+            dy: 1,
+        },
+        {
+            name: "up",
+            opposite: "down",
+            dx: 0,
+            dy: -1,
+        },
+    ];
+
+    // 幅優先探索のキュー
+    const queue = [{ x: startGridX, y: startGridY, }];
+
+    // どのマスから来たかを記録
+    const cameFrom = new Map();
+    const startKey = `${startGridX},${startGridY}`;
+
+    cameFrom.set(startKey, null);
+
+    while (queue.length > 0) {
+        const current = queue.shift();
+        const currentKey = `${current.x},${current.y}`;
+
+        // 目的地に到着
+        if (current.x === targetGridX && current.y === targetGridY) {
+            break;
+        }
+
+        const currentRoad = roadGrid.get(currentKey);
+        const currentConnections = Road.types[currentRoad.type]?.connections ?? [];
+
+        // 現在の道路が接続している方向だけを調べる
+        for (const direction of directions) {
+            if (!currentConnections.includes(direction.name)) {
+                continue;
+            }
+
+            const nextX = current.x + direction.dx;
+            const nextY = current.y + direction.dy;
+            const nextKey = `${nextX},${nextY}`;
+
+            // 訪問済みのマスは飛ばす
+            if (cameFrom.has(nextKey)) {
+                continue;
+            }
+
+            const nextRoad = roadGrid.get(nextKey);
+
+            // 隣に道路がなければ進めない
+            if (!nextRoad) {
+                continue;
+            }
+
+            const nextConnections = Road.types[nextRoad.type]?.connections ?? [];
+
+            // 隣の道路もこちら向きにつながっているか確認
+            if (!nextConnections.includes(direction.opposite)) {
+                continue;
+            }
+
+            cameFrom.set(nextKey, current);
+            queue.push({
+                x: nextX,
+                y: nextY,
+            });
+        }
+    }
+
+    const targetKey = `${targetGridX},${targetGridY}`;
+
+    // 目的地まで到達できなかった
+    if (!cameFrom.has(targetKey)) {
+        return null;
+    }
+
+    // 目的地から開始地点へ逆向きにたどる
+    const path = [];
+    let current = { x: targetGridX, y: targetGridY, };
+
+    while (current !== null) {
+        path.push({
+            x: (current.x + 0.5) * MapGrid.TILE_SIZE,
+            y: (current.y + 0.5) * MapGrid.TILE_SIZE,
+        });
+
+        current = cameFrom.get(`${current.x},${current.y}`);
+    }
+
+    // 開始地点から目的地の順番に戻す
+    path.reverse();
+
+    return path;
+}
+
+
+
 //=================================
 //物を置けるか判定する係
 //=================================
@@ -503,3 +694,4 @@ export function canPlaceGroundObjectAt(x, y) {
 
     return false;
 }
+

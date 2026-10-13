@@ -15,6 +15,10 @@ import {
   Map,
   Screen,
 } from "../game/constants/mapConfig";
+import {
+  getTerrainAt,
+  findRoadPath,
+} from "../game/constants/mapGrid.js";
 
 //道路関係者
 import { roadMap } from "../game/constants/roadConfig";
@@ -192,6 +196,11 @@ function GameView() {
         x: 5000,
         y: 2000,
       },
+
+      // 道路に沿って移動するときの経路
+      roadPath: null,
+      // 次に目指す経路の地点番号
+      roadPathIndex: 0,
 
       direction: Direction.RIGHT,
       frame: Frame.IDLE,
@@ -558,13 +567,34 @@ function GameView() {
     //目的地に着いたらこれ
     if (distance <= moveDistance) {
 
-      vehicle.state = State.STOP;  //バスの状態は止まってるよ。
-      vehicle.frame = Frame.IDLE;  //バスのアニメーションは待機モード
-
       vehicle.position = {
         x: vehicle.target.x,
         y: vehicle.target.y,
       };
+
+      // 道路経路が残っている場合は次の地点へ
+      if (
+        vehicle.roadPath &&
+        vehicle.roadPathIndex < vehicle.roadPath.length
+      ) {
+        const nextPoint = vehicle.roadPath[vehicle.roadPathIndex];
+
+        vehicle.target = {
+          x: nextPoint.x,
+          y: nextPoint.y,
+        };
+
+        vehicle.roadPathIndex++;
+        return;
+      }
+
+
+
+      // 最後の地点に到着したら停止
+      vehicle.roadPath = null;
+      vehicle.roadPathIndex = 0;
+      vehicle.state = State.STOP;  //バスの状態は止まってるよ。
+      vehicle.frame = Frame.IDLE;  //バスのアニメーションは待機モード
 
       startEffect(vehicle, "stop"); //停止のぽよん
 
@@ -757,12 +787,15 @@ function GameView() {
       }
 
       vehicle.position = {
-        x: 960, y: 540,
+        x: Map.WIDTH / 2,
+        y: Map.HEIGHT / 2,
       };
 
       vehicle.target = {
-        x: 960, y: 540,
+        x: 5000, y: 2000,
       };
+      vehicle.roadPath = null;
+      vehicle.roadPathIndex = 0;
 
       vehicle.state = State.STOP;
       vehicle.frame = Frame.IDLE;
@@ -1845,10 +1878,56 @@ function GameView() {
       const newVehicles = [...prevVehicles]; //newVehicle君に今の値をこぴ
       const vehicle = { ...newVehicles[0] };  //vehicle君（計算係）にそのセットの中のバスのやつ渡してあげて。
 
-      vehicle.target = {
-        x: worldPosition.x,
-        y: worldPosition.y,
-      };
+
+      // 現在地と移動先が道路上か調べる
+      const startTerrain = getTerrainAt(
+        vehicle.position.x,
+        vehicle.position.y
+      );
+      const targetTerrain = getTerrainAt(
+        worldPosition.x,
+        worldPosition.y
+      );
+
+      const isRoad = (terrain) => terrain === "road" || terrain === "crosswalk";
+
+      // 前回の経路をリセット
+      vehicle.roadPath = null;
+      vehicle.roadPathIndex = 0;
+
+      // 両方が道路上なら、道路に沿った経路を探す
+      if (isRoad(startTerrain) && isRoad(targetTerrain)) {
+        const path = findRoadPath(
+          vehicle.position.x,
+          vehicle.position.y,
+          worldPosition.x,
+          worldPosition.y
+        );
+
+        if (path) {
+          vehicle.roadPath = path;
+          // 経路の先頭は現在地なので、次の地点から目指す
+          vehicle.roadPathIndex = 1;
+
+          vehicle.target = {
+            x: path[1]?.x ?? path[0].x,
+            y: path[1]?.y ?? path[0].y,
+          };
+        } else {
+          // 経路がなければ従来どおり目的地へ
+          vehicle.target = {
+            x: worldPosition.x,
+            y: worldPosition.y,
+          };
+        }
+      } else {
+        // 道路上同士でなければ従来どおり移動
+        vehicle.target = {
+          x: worldPosition.x,
+          y: worldPosition.y,
+        };
+      }
+
       //バスを移動状態にするよ！
       vehicle.state = State.MOVE;
       //ぽよん準備
