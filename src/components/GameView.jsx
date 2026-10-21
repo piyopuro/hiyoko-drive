@@ -2574,7 +2574,13 @@ function GameView() {
         soundManagerRef.current,
         trainPassengersRef.current
       );
-      updateVisualEffects(now, deltaTime, visualEffectsRef.current);
+      
+      visualEffectsRef.current = updateVisualEffects(
+        now,
+        deltaTime,
+        visualEffectsRef.current
+      );
+      
       updateBubbles(now, deltaTime, bubbleGameRef.current);
       updateMapEggs(eggGameRef.current.mapEggs, now);
     }
