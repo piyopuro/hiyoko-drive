@@ -40,7 +40,13 @@ export const vehicleMaster = {
     shadow: {
       offsetY: 50,
       width: 55,
-      height: 18,
+      height: 22,
+
+      
+      horizontal: {
+        width: 108,
+        height: 18,
+      },
     },
 
     actionSound: "busHorn",
@@ -50,7 +56,7 @@ export const vehicleMaster = {
     width: 192,
     height: 128,
 
-    speed: 400,
+    speed: 500,
 
     canChangeColor: false,
     defaultSkin: "normal",
@@ -60,8 +66,13 @@ export const vehicleMaster = {
 
     shadow: {
       offsetY: 40,
-      width: 55,
+      width: 45,
       height: 18,
+      
+      horizontal: {
+        width: 85,
+        height: 18,
+      },
     },
 
     actionSound: "ambulanceSiren",
@@ -72,7 +83,7 @@ export const vehicleMaster = {
     width: 192,
     height: 128,
 
-    speed: 400,
+    speed: 500,
 
     canChangeColor: false,
     defaultSkin: "normal",
@@ -81,9 +92,14 @@ export const vehicleMaster = {
     },
 
     shadow: {
-      offsetY: 50,
+      offsetY: 58,
       width: 55,
       height: 18,
+      
+      horizontal: {
+        width: 85,
+        height: 18,
+      },
     },
 
     actionSound: "fireEngineSiren",
@@ -110,7 +126,7 @@ export const vehicleMaster = {
     width: 150,
     height: 80,
 
-    speed: 400,
+    speed: 500,
 
     canChangeColor: false,
     defaultSkin: "normal",
@@ -120,8 +136,13 @@ export const vehicleMaster = {
 
     shadow: {
       offsetY: 30,
-      width: 55,
+      width: 37,
       height: 18,
+
+      horizontal: {
+        width: 72,
+        height: 18,
+      },
     },
 
     actionSound: "policeCarSiren",
@@ -152,9 +173,14 @@ export const vehicleMaster = {
     },
 
     shadow: {
-      offsetY: 30,
+      offsetY: 32,
       width: 45,
       height: 18,
+
+      horizontal: {
+        width: 62,
+        height: 18,
+      },
     },
 
     actionSound: "car01",
@@ -163,6 +189,34 @@ export const vehicleMaster = {
       startTime: null,
     },
 
+  },
+
+  carCarrier: {
+    width: 360,
+    height: 140,
+
+    speed: 300,
+
+    canChangeColor: false,
+    defaultSkin: "normal",
+    skins: {
+      normal: "carCarrier01",
+    },
+
+    shadow: {
+      offsetY: 60,
+      // 正面・背面
+      width: 65,
+      height: 25,
+
+      // 左右
+      horizontal: {
+        width: 150,
+        height: 22,
+      },
+    },
+
+    actionSound: "carCarrier01",
   },
 
   /* 今後実装予定

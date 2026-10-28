@@ -1,3 +1,4 @@
+import { Screen } from "../constants/mapConfig";
 //影つけ係
 export function drawShadow(ctx, x, y, width, height) {
   ctx.beginPath();
@@ -42,8 +43,17 @@ export function worldToScreen(x, y, camera) {
 
 //カメラ座標を世界座標に変換する係
 export function screenToWorld(x, y, camera) {
+  const scale = camera.scale ?? 1;
+
   return {
-    x: x + camera.x,
-    y: y + camera.y,
+    x:
+      (x - Screen.WIDTH / 2) / scale +
+      Screen.WIDTH / 2 +
+      camera.x,
+
+    y:
+      (y - Screen.HEIGHT / 2) / scale +
+      Screen.HEIGHT / 2 +
+      camera.y,
   };
 }

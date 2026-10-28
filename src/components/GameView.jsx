@@ -45,10 +45,14 @@ import {
 
 //ひよこカー関係者
 import {
+  TrafficCar,
+  TrafficCarMode,
   createTrafficCar,
   drawTrafficCar,
   updateTrafficCar,
   getTappedTrafficCar,
+  updateLoadedTrafficCars,
+  updateCarCarrierUpperDeckCars,
 } from "../game/trafficCar/trafficCar";
 
 //NPC関係者
@@ -122,6 +126,20 @@ import {
   CarAction,
   updateCarAction,
 } from "../game/vehicle/carAction";
+
+import {
+  CarCarrierState,
+  CarCarrierEvent,
+  CarCarrierConfig,
+  startCarCarrierLoading,
+  finishCarCarrierLoading,
+  startCarCarrierUnloading,
+  finishCarCarrierUnloading,
+  tryLoadTrafficCar,
+  drawCarCarrierRamp,
+  updateCarCarrierUnloading,
+  drawCarCarrierLowerDeck,
+} from "../game/vehicle/carCarrierAction.js";
 
 //その他
 //シャボン玉関係者
@@ -257,6 +275,21 @@ function GameView() {
     lastY: 0,
   });
 
+  //ひよこカーつまみの管理人
+  const trafficCarPointerRef = useRef({
+    car: null,
+    pointerId: null,
+    timerId: null,
+    isDragging: false,
+
+    startX: 0,
+    startY: 0,
+    lastX: 0,
+    lastY: 0,
+
+    grabOffsetX: 0,
+    grabOffsetY: 0,
+  });
 
   const imagesRef = useRef({});
 
@@ -353,6 +386,7 @@ function GameView() {
   const cameraRef = useRef({
     x: 1920,
     y: 912,
+    scale: 1,
   });
 
   //カメラ移動管理人
@@ -383,6 +417,14 @@ function GameView() {
   // 車が停止したあとのカメラ中央寄せ管理人
   const vehicleCameraRef = useRef({
     isCentering: false,
+  });
+  //ズーム管理
+  const cameraZoomRef = useRef({
+    active: false,
+    startTime: 0,
+    duration: 500,
+    startScale: 1,
+    targetScale: 1,
   });
 
 
@@ -557,6 +599,15 @@ function GameView() {
   //===============================
   //のりものの位置情報更新係
   function updatePosition(vehicle, master, dx, dy, distance, deltaTime) {
+
+    // カーキャリアは荷下ろし中に移動しない
+    if (
+      vehicle.type === "carCarrier" &&
+      vehicle.carrierEvent === CarCarrierEvent.UNLOADING
+    ) {
+      return;
+    }
+
 
     if (vehicle.state === State.STOP) return;
 
@@ -733,6 +784,13 @@ function GameView() {
       // 位置更新前の車の状態を記録
       const wasMoving = vehicle.state === State.MOVE;
       updatePosition(vehicle, master, dx, dy, distance, deltaTime);
+
+      // カーキャリアが移動した後に、積載車の位置を更新
+      if (vehicle.type === "carCarrier") {
+        updateLoadedTrafficCars(vehicle);
+      }
+
+
       // 走行中から停止に変わった瞬間、中央寄せを開始
       if (wasMoving && vehicle.state === State.STOP) {
         vehicleCameraRef.current.isCentering = true;
@@ -779,6 +837,12 @@ function GameView() {
 
       vehicle.type = newType;
       vehicle.skin = master.defaultSkin;
+
+      if (newType === "carCarrier") {
+        vehicle.carrierState = CarCarrierState.EMPTY;
+        vehicle.carrierEvent = CarCarrierEvent.NONE;
+        vehicle.loadedCars = [];
+      }
 
       if (master.initialActionState) {
         vehicle.actionState = { ...master.initialActionState };
@@ -880,12 +944,13 @@ function GameView() {
       cameraRef.current
     );
 
+    //ひよこを触っているか判定
     const npc = getTappedNPC(
       worldPosition.x,
       worldPosition.y
     );
 
-    //ひよこを触っているなら、まず長押し待ち
+    //ひよこつまみ、まずは長押し待ち
     if (npc) {
       const npcPointer = npcPointerRef.current;
 
@@ -963,6 +1028,109 @@ function GameView() {
 
       return;
     }
+
+    // ひよこカーを触ったかな？
+    const tappedTrafficCar = getTappedTrafficCar(
+      worldPosition.x,
+      worldPosition.y,
+      trafficCarsRef.current
+    );
+
+    //ひよこカーつまみ
+    if (
+      tappedTrafficCar &&
+      tappedTrafficCar.mode === TrafficCarMode.CARRIER_WAITING
+    ) {
+      const pointer = trafficCarPointerRef.current;
+
+      pointer.car = tappedTrafficCar;
+      pointer.pointerId = event.pointerId;
+      pointer.isDragging = false;
+
+      pointer.startX = x;
+      pointer.startY = y;
+      pointer.lastX = x;
+      pointer.lastY = y;
+
+      if (pointer.timerId !== null) {
+        clearTimeout(pointer.timerId);
+      }
+
+      pointer.timerId = setTimeout(() => {
+        const current = trafficCarPointerRef.current;
+
+        if (
+          current.car !== tappedTrafficCar ||
+          current.pointerId !== event.pointerId
+        ) {
+          return;
+        }
+
+        const movedDistance = Math.hypot(
+          current.lastX - current.startX,
+          current.lastY - current.startY
+        );
+
+        if (movedDistance > 20) {
+          return;
+        }
+
+        const currentWorld = screenToWorld(
+          current.lastX,
+          current.lastY,
+          cameraRef.current
+        );
+
+        // つまんだ位置を維持する
+        current.grabOffsetX =
+          tappedTrafficCar.x - currentWorld.x;
+
+        current.grabOffsetY =
+          tappedTrafficCar.y - currentWorld.y;
+
+        // つまみ開始！
+        tappedTrafficCar.isPickedUp = true;
+        tappedTrafficCar.tapAnimation = false;
+        tappedTrafficCar.tapAnimationFrame = 0;
+        tappedTrafficCar.frame = 0;
+
+        const now = performance.now();
+
+        // ぽよん！
+        tappedTrafficCar.poyonStart = now;
+
+        // 効果音
+        soundManagerRef.current.play("carTsumami");
+
+        current.isDragging = true;
+        cameraDragRef.current.wasDragging = true;
+      }, NPCDragConfig.HOLD_TIME);
+
+      // カメラ操作の初期化
+      cameraDragRef.current = {
+        isDragging: false,
+        startX: x,
+        startY: y,
+        lastX: x,
+        lastY: y,
+        velocityX: 0,
+        velocityY: 0,
+        wasDragging: false,
+        edgePushX: 0,
+        edgePushY: 0,
+      };
+
+      try {
+        event.currentTarget.setPointerCapture(
+          event.pointerId
+        );
+      } catch {
+        // Pointer Capture非対応時はそのまま続行
+      }
+
+      return;
+    }
+
 
 
     cameraDragRef.current = {
@@ -1174,7 +1342,74 @@ function GameView() {
       return;
     }
 
+    // ひよこカーの長押し待ち・つまみ中
+    const carPointer = trafficCarPointerRef.current;
 
+    if (
+      carPointer.car &&
+      carPointer.pointerId === event.pointerId
+    ) {
+      const moveDistance = Math.hypot(
+        x - carPointer.startX,
+        y - carPointer.startY
+      );
+
+      carPointer.lastX = x;
+      carPointer.lastY = y;
+
+      // すでにつまんでいる
+      if (carPointer.isDragging) {
+        const worldPosition = screenToWorld(
+          x,
+          y,
+          cameraRef.current
+        );
+
+        carPointer.car.x =
+          worldPosition.x + carPointer.grabOffsetX;
+
+        carPointer.car.y =
+          worldPosition.y + carPointer.grabOffsetY;
+
+        return;
+      }
+
+      // 長押し成立前に動かしたら、カメラ操作に戻す
+      if (moveDistance > 20) {
+        if (carPointer.timerId !== null) {
+          clearTimeout(carPointer.timerId);
+        }
+
+        trafficCarPointerRef.current = {
+          car: null,
+          pointerId: null,
+          timerId: null,
+          isDragging: false,
+          startX: 0,
+          startY: 0,
+          lastX: 0,
+          lastY: 0,
+          grabOffsetX: 0,
+          grabOffsetY: 0,
+        };
+
+        cameraDragRef.current = {
+          ...cameraDragRef.current,
+          startX: x,
+          startY: y,
+          lastX: x,
+          lastY: y,
+          isDragging: true,
+          wasDragging: true,
+          velocityX: 0,
+          velocityY: 0,
+        };
+
+        return;
+      }
+
+      return;
+    }
 
     const drag = cameraDragRef.current;
     if (!event.buttons) {
@@ -1271,6 +1506,101 @@ function GameView() {
       return;
     }
 
+    // ひよこカーの操作終了
+    const carPointer = trafficCarPointerRef.current;
+
+    if (carPointer.car && carPointer.pointerId === event.pointerId) {
+      const car = carPointer.car;
+
+      if (carPointer.timerId !== null) {
+        clearTimeout(carPointer.timerId);
+      }
+
+      if (carPointer.isDragging) {
+        // つまみ終了
+        car.isPickedUp = false;
+
+        // 積載に成功したか確認
+        const carrier = vehiclesRef.current?.find(
+          (vehicle) => vehicle.type === "carCarrier"
+        );
+
+        if (carrier) {
+          const loaded = tryLoadTrafficCar(carrier, car);
+
+          if (loaded) {
+            // 積載位置と向きを反映
+            updateLoadedTrafficCars(carrier);
+            soundManagerRef.current.play("carNoseru");
+            // 星のキラキラエフェクト
+            createStarSparkles(
+              car.x,
+              car.y,
+              performance.now(),
+              visualEffectsRef.current
+            );
+            if (
+              carrier.loadedCars.length >=
+              CarCarrierConfig.MAX_LOADED_CARS
+            ) {
+              finishCarCarrierLoading(
+                carrier,
+                trafficCarsRef.current
+              );
+
+              restoreCarCarrierZoom(performance.now());
+            }
+
+          }
+        }
+
+        cameraDragRef.current.wasDragging = true;
+
+      } else {
+        // 短いタップだった場合は従来のアニメーション
+        car.tapAnimation = true;
+        car.tapAnimationStart = performance.now();
+        car.tapAnimationFrame = 0;
+        car.poyonStart = performance.now();
+
+        car.frame = TrafficCar.TAP_FRAMES[0];
+
+        soundManagerRef.current.play(car.soundType);
+
+        createTapSparkles(
+          car.x,
+          car.y,
+          performance.now(),
+          visualEffectsRef.current
+        );
+      }
+
+      trafficCarPointerRef.current = {
+        car: null,
+        pointerId: null,
+        timerId: null,
+        isDragging: false,
+        startX: 0,
+        startY: 0,
+        lastX: 0,
+        lastY: 0,
+        grabOffsetX: 0,
+        grabOffsetY: 0,
+      };
+
+      activePointerIdRef.current = null;
+      ignoredPointerIdsRef.current.clear();
+
+      try {
+        event.currentTarget.releasePointerCapture(
+          event.pointerId
+        );
+      } catch {
+        // すでに解除されている場合
+      }
+
+      return;
+    }
 
     const npcPointer = npcPointerRef.current;
 
@@ -1512,6 +1842,17 @@ function GameView() {
 
     }
 
+    // カーキャリアの荷下ろし中は操作を受け付けない
+    const isCarrierUnloading = vehiclesRef.current.some(
+      (vehicle) =>
+        vehicle.type === "carCarrier" &&
+        vehicle.carrierEvent === CarCarrierEvent.UNLOADING
+    );
+
+    if (isCarrierUnloading) {
+      return;
+    }
+
     //付箋おさわりチェック
     const tabRect = getVehicleMenuTabRect(vehicleMenuRef.current);
 
@@ -1720,7 +2061,6 @@ function GameView() {
       return;
     }
 
-
     //今いる車を触ったかな？
     const vehicle = vehiclesRef.current[0];
     const vehicleRect = getVehicleRect(vehicle);
@@ -1857,7 +2197,87 @@ function GameView() {
         return;
       }
 
+      // 君はカーキャリア？
+      if (vehicle.type === "carCarrier") {
+
+        // イベント中なら新しいイベントを開始しない
+        if (vehicle.carrierEvent !== CarCarrierEvent.NONE) {
+          return;
+        }
+
+        // 空なら積載、積載済みなら荷下ろし
+        if (vehicle.carrierState === CarCarrierState.EMPTY) {
+          soundManagerRef.current.play("carCarrier02");
+          soundManagerRef.current.play("car03");
+          startCarCarrierLoading(vehicle, trafficCarsRef.current);
+          // カーキャリアを画面中央に寄せる
+          const camera = cameraRef.current;
+
+          const targetX =
+            vehicle.position.x - Screen.WIDTH / 2;
+          const targetY =
+            vehicle.position.y - Screen.HEIGHT / 2;
+
+          moveCamera(
+            targetX - camera.x,
+            targetY - camera.y
+          );
+
+        } else if (vehicle.carrierState === CarCarrierState.LOADED) {
+          const started = startCarCarrierUnloading(vehicle, trafficCarsRef.current);
+
+          // 荷下ろし開始に成功したら、走行と車メニューを停止
+          if (started) {
+            // カーキャリアをその場で停止
+            vehicle.state = State.STOP;
+            vehicle.target.x = vehicle.position.x;
+            vehicle.target.y = vehicle.position.y;
+
+            // 車メニューが開いていたら閉じる
+            const menu = vehicleMenuRef.current;
+            if (menu.isOpen || menu.progress > 0) {
+              toggleVehicleMenu(now, menu);
+            }
+          }
+
+          //カメラ中央寄せを解除
+          vehicleCameraRef.current.isCentering = false;
+          // カーキャリアを画面中央ちょっと横に寄せる
+          const directionSign = vehicle.direction === Direction.RIGHT ? -1 : 1;
+          const camera = cameraRef.current;
+          const targetX =
+            vehicle.position.x - Screen.WIDTH / 2 + 150 * directionSign;
+          const targetY =
+            vehicle.position.y - Screen.HEIGHT / 2;
+
+          moveCamera(
+            targetX - camera.x,
+            targetY - camera.y
+          );
+
+          // 荷下ろし開始に成功したときだけアニメーション音を鳴らす
+          if (started) {
+            soundManagerRef.current.play("carCarrier03");
+          }
+        }
+
+
+
+        // カメラズーム開始
+        const zoom = cameraZoomRef.current;
+        zoom.active = true;
+        zoom.startTime = now;
+        zoom.duration = 500;
+        zoom.startScale = cameraRef.current.scale;
+        zoom.targetScale = 2;
+
+        return;
+      }
+
     }
+
+
+
 
 
     //アクション中は移動しないよ！
@@ -1873,6 +2293,19 @@ function GameView() {
 
     // 車が動き始めたら、カメラ中央寄せを解除
     vehicleCameraRef.current.isCentering = false;
+
+    // カーキャリア積載イベント中にマップをタップしたら終了
+    if (
+      vehicle.type === "carCarrier" &&
+      vehicle.carrierEvent === CarCarrierEvent.LOADING
+    ) {
+      finishCarCarrierLoading(
+        vehicle,
+        trafficCarsRef.current
+      );
+
+      restoreCarCarrierZoom(now);
+    }
 
     setVehicles((prevVehicles) => {
       const newVehicles = [...prevVehicles]; //newVehicle君に今の値をこぴ
@@ -1993,10 +2426,11 @@ function GameView() {
 
     let frame = vehicle.frame;
 
+    //★ポンプ車用
     if (vehicle.type === "fireEngine" && vehicle.actionState?.hoseRemoved) {
       frame = master.hoseRemovedFrame;
     }
-
+    //★パトカー用
     if (
       vehicle.type === "policeCar" &&
       vehicle.actionState?.startTime != null
@@ -2019,7 +2453,7 @@ function GameView() {
           ];
       }
     }
-
+    //★乗用車用
     if (
       vehicle.type === "car" &&
       vehicle.actionState?.startTime != null
@@ -2042,6 +2476,24 @@ function GameView() {
           ];
       }
     }
+    //★カーキャリア用（荷下ろし）
+    if (
+      vehicle.type === "carCarrier" &&
+      vehicle.carrierEvent === CarCarrierEvent.UNLOADING
+    ) {
+      if (
+        vehicle.unloadingPhase === "rampOpening" ||
+        vehicle.unloadingPhase === "carsUnloading"
+      ) {
+        frame = 2;
+      }
+      if (
+        vehicle.unloadingPhase === "upperDeckLowering" ||
+        vehicle.unloadingPhase === "upperCarsUnloading"
+      ) {
+        frame = 3;
+      }
+    }
 
     const sx = frame * frameWidth;       //アニメーション用の場所指定してるよ。
     const sy = vehicle.direction * frameHeight;  //どこ向いてるかな？？によって切り取る場所を変えるよ。
@@ -2057,13 +2509,41 @@ function GameView() {
     const drawHeight = frameHeight * vehicle.transform.scaleY;
 
 
+    // カーキャリアのスロープ
+    if (vehicle.type === "carCarrier") {
+      drawCarCarrierRamp(
+        ctx,
+        vehicle,
+        now,
+        imagesRef.current.carCarrierParts01,
+        cameraRef.current
+      );
+    }
+    // カーキャリア上段下降用パーツ
+    drawCarCarrierLowerDeck(
+      ctx,
+      vehicle,
+      imagesRef.current.carCarrierParts02,
+      cameraRef.current
+    );
+
+    // 影の大きさを向きによって切り替える
+    const isHorizontal =
+      vehicle.direction === Direction.RIGHT ||
+      vehicle.direction === Direction.LEFT;
+
+    const shadowSize =
+      isHorizontal && shadow.horizontal
+        ? shadow.horizontal
+        : shadow;
+
     // 影
     drawShadow(
       ctx,
       screenPosition.x,
       screenPosition.y + shadow.offsetY,
-      shadow.width,
-      shadow.height
+      shadowSize.width,
+      shadowSize.height
     );
 
     ctx.drawImage(
@@ -2090,8 +2570,24 @@ function GameView() {
     //一回画面をきれいにする。
     ctx.clearRect(0, 0, 1920, 1440);
 
-    //背景描いてる部署
+
+    // ワールド部分のズーム開始
     const camera = cameraRef.current;
+    const scale = camera.scale ?? 1;
+
+    // 画面中央を基準にズーム
+    ctx.save();
+    ctx.translate(
+      Screen.WIDTH / 2,
+      Screen.HEIGHT / 2
+    );
+    ctx.scale(scale, scale);
+    ctx.translate(
+      -Screen.WIDTH / 2,
+      -Screen.HEIGHT / 2
+    );
+
+    //背景描いてる部署
     ctx.drawImage(
       background,
       -camera.x,
@@ -2194,10 +2690,25 @@ function GameView() {
 
     //ひよこカーを描画グループに登録
     trafficCarsRef.current.forEach((car) => {
+      let drawY = car.y;
+
+      // カーキャリアが後ろ向きで、ひよこカーを載せている場合
+      if (
+        vehicle.type === "carCarrier" &&
+        vehicle.direction === Direction.BACK &&
+        car.mode === TrafficCarMode.CARRIER_LOADED
+      ) {
+        // カーキャリアより手前に描画する
+        drawY = Math.max(
+          car.y,
+          getVehicleDrawY(vehicle) + 1
+        );
+      }
+
       drawGroups.push({
         type: "trafficCar",
         object: car,
-        drawY: car.y,
+        drawY,
       });
     });
 
@@ -2320,6 +2831,7 @@ function GameView() {
 
     //----------------  ↑↑  Y基準ソートここまで  ↑↑  ------------------------
 
+
     //----------------  ↓↓  前面固定  ↓↓  ------------------------------
 
     //インク飛沫描画係
@@ -2327,14 +2839,6 @@ function GameView() {
       ctx,
       inkSplashesRef.current,
       cameraRef.current
-    );
-    //しゃぼんだま描画係
-    drawBubbles(
-      ctx,
-      now,
-      bubbleGameRef.current,
-      imagesRef.current.bubble,
-      imagesRef.current.bubblePop
     );
     //タップエフェクト描画係
     drawVisualEffects(
@@ -2349,6 +2853,20 @@ function GameView() {
         starEffect03: imagesRef.current.starEffect03,
       }
     );
+
+    // ワールド部分のズーム終了
+    ctx.restore();
+
+    //しゃぼんだま描画係
+    drawBubbles(
+      ctx,
+      now,
+      bubbleGameRef.current,
+      imagesRef.current.bubble,
+      imagesRef.current.bubblePop
+    );
+
+
     //メニュー描画係
     drawVehicleMenu(
       ctx,
@@ -2358,12 +2876,21 @@ function GameView() {
       vehiclesRef.current,
       vehicleSelectEffectRef.current
     );
-    drawVehicleMenuTab(
-      ctx,
-      vehicleMenuRef.current,
-      imagesRef.current.menuTag01
 
+    // 荷下ろし中は車メニューのタブを隠す
+    const isCarrierUnloading = vehiclesRef.current.some(
+      (vehicle) =>
+        vehicle.type === "carCarrier" &&
+        vehicle.carrierEvent === CarCarrierEvent.UNLOADING
     );
+    if (!isCarrierUnloading) {
+      drawVehicleMenuTab(
+        ctx,
+        vehicleMenuRef.current,
+        imagesRef.current.menuTag01
+      );
+    }
+
     drawEggEvent(
       ctx,
       imagesRef.current.eggEvent01,
@@ -2415,18 +2942,23 @@ function GameView() {
     camera.x = nextX;
     camera.y = nextY;
 
-    //マップの外には出ない
-    camera.x = clamp(
-      camera.x,
-      0,
-      Map.WIDTH - Screen.WIDTH
-    );
+    // ズーム倍率に応じたカメラ移動範囲
+    const scale = camera.scale ?? 1;
 
-    camera.y = clamp(
-      camera.y,
-      0,
-      Map.HEIGHT - Screen.HEIGHT
-    );
+    const halfWidth = Screen.WIDTH / 2;
+    const halfHeight = Screen.HEIGHT / 2;
+
+    const minX = halfWidth * (1 / scale - 1);
+    const maxX =
+      Map.WIDTH - halfWidth * (1 + 1 / scale);
+
+    const minY = halfHeight * (1 / scale - 1);
+    const maxY =
+      Map.HEIGHT - halfHeight * (1 + 1 / scale);
+
+    // マップ外が見えない範囲に制限
+    camera.x = clamp(camera.x, minX, maxX);
+    camera.y = clamp(camera.y, minY, maxY);
   }
 
   //カメラの慣性を動かす係
@@ -2463,6 +2995,46 @@ function GameView() {
       drag.velocityX = 0;
       drag.velocityY = 0;
     }
+  }
+
+  // カメラをズームさせる係
+  function updateCameraZoom(now) {
+    const zoom = cameraZoomRef.current;
+
+    if (!zoom.active) {
+      return;
+    }
+
+    const elapsed = now - zoom.startTime;
+    const progress = Math.min(
+      elapsed / zoom.duration,
+      1
+    );
+
+    // なめらかに加速・減速
+    const easedProgress =
+      progress * progress * (3 - 2 * progress);
+
+    cameraRef.current.scale =
+      zoom.startScale +
+      (zoom.targetScale - zoom.startScale) *
+      easedProgress;
+
+    if (progress >= 1) {
+      cameraRef.current.scale = zoom.targetScale;
+      zoom.active = false;
+    }
+  }
+
+  //カメラのズームを戻す係
+  function restoreCarCarrierZoom(now) {
+    const zoom = cameraZoomRef.current;
+
+    zoom.active = true;
+    zoom.startTime = now;
+    zoom.duration = 500;
+    zoom.startScale = cameraRef.current.scale;
+    zoom.targetScale = 1;
   }
 
   //=================================
@@ -2549,6 +3121,29 @@ function GameView() {
 
 
       updateVehicle(now, deltaTime);
+      // カーキャリアの荷下ろしイベント
+      vehiclesRef.current.forEach((vehicle) => {
+        if (vehicle.type !== "carCarrier") {
+          return;
+        }
+
+        // 更新前のイベント状態を記録
+        const wasUnloading = vehicle.carrierEvent === CarCarrierEvent.UNLOADING;
+
+        updateCarCarrierUnloading(vehicle, now, soundManagerRef.current);
+        updateCarCarrierUpperDeckCars(vehicle);
+
+        // 荷下ろしイベントが終了した瞬間にズームを戻す
+        const finishedUnloading =
+          wasUnloading &&
+          vehicle.carrierEvent === CarCarrierEvent.NONE;
+
+        if (finishedUnloading) {
+          restoreCarCarrierZoom(now);
+        }
+      });
+
+
       updateNPCs(
         npcsRef.current,
         vehiclesRef.current,
@@ -2556,9 +3151,11 @@ function GameView() {
         deltaTime,
         soundManagerRef.current
       );
+
       trafficCarsRef.current.forEach((car) => {
-        updateTrafficCar(car, now, deltaTime);
+        updateTrafficCar(car, now, deltaTime, soundManagerRef.current);
       });
+
       updateHiyokoHouseDoor(
         hiyokoHouseRef.current,
         now,
@@ -2574,18 +3171,20 @@ function GameView() {
         soundManagerRef.current,
         trainPassengersRef.current
       );
-      
+
       visualEffectsRef.current = updateVisualEffects(
         now,
         deltaTime,
         visualEffectsRef.current
       );
-      
+
       updateBubbles(now, deltaTime, bubbleGameRef.current);
       updateMapEggs(eggGameRef.current.mapEggs, now);
     }
 
     const ctx = ctxRef.current;
+
+    updateCameraZoom(now);
 
     if (ctx) {
       draw(ctx, now);
@@ -2619,6 +3218,8 @@ function GameView() {
       "policeCar01",
 
       "car01", "car02", "car03", "car04", "car05", "car06", "car07", "car08",
+
+      "carCarrier01", "carCarrierParts01", "carCarrierParts02",
 
       "hiyokoCar01", "hiyokoCar02", "hiyokoCar03",
 
@@ -2668,27 +3269,20 @@ function GameView() {
       }
     }
 
-    const webpImages = [
-      "background02",
-      "menuBackground01",
-      "eggEvent01",
-      "eggEvent02",
-      "hiyokoHouse01",
-      "railway01",
-    ];
-
     //読み込んでお名前をつける係
     imageNames.forEach((name) => {
       const image = new Image();
 
       image.onload = imageLoaded;
 
-
-      const extension = webpImages.includes(name) ? "webp" : "png";
-
-      image.src = `${import.meta.env.BASE_URL}images/${name}.${extension}`;
+      image.src = `${import.meta.env.BASE_URL}images/${name}.webp`;
 
       imagesRef.current[name] = image;
+      image.onerror = () => {
+        console.error("画像読み込み失敗:", image.src);
+      };
+
+      image.src = `${import.meta.env.BASE_URL}images/${name}.webp`;
     });
 
   }, []);
@@ -2706,6 +3300,9 @@ function GameView() {
       "fireEngineSiren", "fireFightAction01", "fireFightAction02",
       "policeCarSiren", "policeCarAction01",
       "car01",
+
+      "carCarrier01", "carCarrier02", "carCarrier03",
+      "carTsumami", "carNoseru", "car02", "car03",
 
       "hiyokoCar01", "hiyokoCar02", "hiyokoCar03",
       "train01", "crossing", "trainHorn01", "passengerAppear01",

@@ -60,8 +60,8 @@ export const vehicleMenuItems = [
     lineY: 300,
     baselineOffset: 0,
 
-    selectOffsetX: -90,
-    selectOffsetY: -90,
+    selectOffsetX: -80,
+    selectOffsetY: -60,
   },
   {
     type: "car",
@@ -70,7 +70,17 @@ export const vehicleMenuItems = [
     lineY: 600,
     baselineOffset: 0,
 
-    selectOffsetX: -90,
+    selectOffsetX: -80,
+    selectOffsetY: -60,
+  },
+  {
+    type: "carCarrier",
+    skin: "normal",
+    offsetX: 700,
+    lineY: 600,
+    baselineOffset: 0,
+
+    selectOffsetX: -180,
     selectOffsetY: -90,
   },
 

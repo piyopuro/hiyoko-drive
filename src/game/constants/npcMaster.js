@@ -78,10 +78,10 @@ export const npcMaster = {
     walkFrames: [1, 0, 2, 0],
 
     directionRows: {
-      front: 0,
-      back: 1,
-      right: 2,
-      left: 3,
+      right: 0,
+      left: 1,
+      front: 2,
+      back: 3,
     },
 
     waitTime: {
