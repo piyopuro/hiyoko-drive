@@ -8,11 +8,12 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "release":"node scripts/release.js"
+    "release": "node scripts/release.js"
   },
   "dependencies": {
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "three": "^0.187.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

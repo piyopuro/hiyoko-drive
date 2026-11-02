@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { VERSION } from "../version";
 import SoundManager from "../SoundManager";
 
+//おうちモード
+import HomeMode from "./HomeMode";
+
 //ゲーム内共通
 import { clamp } from "../game/utils/math";
 import {
@@ -198,6 +201,12 @@ function GameView() {
 
   //========ゲーム状態管理人たち========
 
+  //現在のモード管理人
+  const [isHomeMode, setIsHomeMode] = useState(false);  //　false：通常マップ　true：おうちモード
+
+
+  //========のりものの状態管理人たち========
+
   //のりものたちの状態の記録係
   const [vehicles, setVehicles] = useState([
     {
@@ -250,6 +259,10 @@ function GameView() {
       createTrafficCar("hiyokoCar02", 19, 8),
       createTrafficCar("hiyokoCar03", 21, 14),];
   }
+
+
+
+  //========ひよこの状態管理人たち========
 
   //ひよこ管理人
   const npcsRef = useRef(null);
@@ -3264,7 +3277,7 @@ function GameView() {
       "houseOutButton",
 
       "houseFloor01", "houseWall01",
-      "houseWindow01","houseWindow02","houseWindow03",
+      "houseWindow01", "houseWindow02", "houseWindow03",
 
       "windowButton01", "windowButton02", "windowButton03",
       "dayNightButton"
@@ -3448,6 +3461,14 @@ function GameView() {
 
       <div className="gameArea">
 
+        {isHomeMode && (
+          <HomeMode
+            onExit={() => setIsHomeMode(false)}
+            scale={scale}
+          />
+        )}
+
+
         <canvas
           className="gameCanvas"
           ref={canvasRef}
@@ -3464,6 +3485,23 @@ function GameView() {
           onPointerCancel={handlePointerUp}
         />
 
+        {!isHomeMode && (
+          <button
+            type="button"
+            onClick={() => setIsHomeMode(true)}
+            style={{
+              position: "absolute",
+              top: 20 * scale,
+              left: 20 * scale,
+              zIndex: 100,
+              padding: "5px 5px",
+              fontSize: 30 * scale,
+              cursor: "pointer",
+            }}
+          >
+            🐥おうち試作
+          </button>
+        )}
         <div
           ref={fpsDisplayRef}
           className="fps"
