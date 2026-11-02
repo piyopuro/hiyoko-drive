@@ -6,6 +6,7 @@ import SoundManager from "../SoundManager";
 import { clamp } from "../game/utils/math";
 import {
   drawShadow,
+  drawRectShadow,
   worldToScreen,
   screenToWorld,
 } from "../game/utils/draw";
@@ -2538,12 +2539,13 @@ function GameView() {
         : shadow;
 
     // 影
-    drawShadow(
+    drawRectShadow(
       ctx,
       screenPosition.x,
       screenPosition.y + shadow.offsetY,
       shadowSize.width,
-      shadowSize.height
+      shadowSize.height,
+      20
     );
 
     ctx.drawImage(
@@ -3204,6 +3206,7 @@ function GameView() {
     //画像はここから。
     const imageNames = [
       "background02",
+      "loading01", "loading02",
 
       "road_horizontal", "road_vertical",
       "road_t_01", "road_t_02", "road_t_03", "road_t_04",
@@ -3248,6 +3251,24 @@ function GameView() {
       "egg01",
       "eggEvent01", "eggEvent02",
       "eggEventEffect01", "eggEventEffect02",
+
+
+      "skyNight", "star01", "moon01", "moon02",
+
+      "skyDay", "skyCloudy",
+      "sun01", "sun02", "cloud01", "cloudEffect",
+      "rain01", "rain02",
+
+      "houseInButton", "houseCancelButton",
+
+      "houseOutButton",
+
+      "houseFloor01", "houseWall01",
+      "houseWindow01","houseWindow02","houseWindow03",
+
+      "windowButton01", "windowButton02", "windowButton03",
+      "dayNightButton"
+
     ];
 
     //読み込み進捗君。全部揃ったら描いてくれる。

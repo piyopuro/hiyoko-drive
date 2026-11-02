@@ -65,7 +65,7 @@ export const roadMap = [
   { type: "horizontal", x: 5, y: 2 },
   { type: "crosswalk01", x: 6, y: 2 },
   { type: "t_02", x: 7, y: 2 },
-  { type: "horizontal", x: 8, y: 2 },
+  { type: "crosswalk01", x: 8, y: 2 },
   { type: "horizontal", x: 9, y: 2 },
   { type: "horizontal", x: 10, y: 2 },
   { type: "horizontal", x: 11, y: 2 },
@@ -145,7 +145,7 @@ export const roadMap = [
   { type: "horizontal", x: 5, y: 8 },
   { type: "crosswalk01", x: 6, y: 8 },
   // x7 は十字路
-  { type: "horizontal", x: 8, y: 8 },
+  { type: "crosswalk01", x: 8, y: 8 },
   { type: "horizontal", x: 9, y: 8 },
   { type: "horizontal", x: 10, y: 8 },
   { type: "crosswalk01", x: 11, y: 8 },
@@ -178,8 +178,8 @@ export const roadMap = [
   { type: "t_01", x: 23, y: 8 },
   { type: "crosswalk01", x: 24, y: 8 },
   { type: "t_02", x: 25, y: 8 },
-  { type: "horizontal", x: 26, y: 8 },
-  { type: "crosswalk01", x: 27, y: 8 },
+  { type: "crosswalk01", x: 26, y: 8 },
+  { type: "horizontal", x: 27, y: 8 },
 
   // 右側の縦道路
   { type: "t_02", x: 20, y: 8 },
@@ -190,7 +190,7 @@ export const roadMap = [
   { type: "crosswalk02", x: 20, y: 13 },
 
   // 右下へ伸びる縦道路
-  { type: "vertical", x: 25, y: 9 },
+  { type: "crosswalk02", x: 25, y: 9 },
   { type: "vertical", x: 25, y: 10 },
   { type: "vertical", x: 25, y: 11 },
   { type: "vertical", x: 25, y: 12 },

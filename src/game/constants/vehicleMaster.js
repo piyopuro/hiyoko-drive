@@ -39,13 +39,13 @@ export const vehicleMaster = {
 
     shadow: {
       offsetY: 50,
-      width: 55,
-      height: 22,
+      width: 102,
+      height: 44,
 
       
       horizontal: {
-        width: 108,
-        height: 18,
+        width: 210        ,
+        height: 35,
       },
     },
 
@@ -66,12 +66,12 @@ export const vehicleMaster = {
 
     shadow: {
       offsetY: 40,
-      width: 45,
-      height: 18,
+      width: 80,
+      height: 36,
       
       horizontal: {
-        width: 85,
-        height: 18,
+        width: 160,
+        height: 36,
       },
     },
 
@@ -92,13 +92,13 @@ export const vehicleMaster = {
     },
 
     shadow: {
-      offsetY: 58,
-      width: 55,
-      height: 18,
+      offsetY: 50,
+      width: 100,
+      height: 36,
       
       horizontal: {
-        width: 85,
-        height: 18,
+        width: 170,
+        height: 36,
       },
     },
 
@@ -135,13 +135,13 @@ export const vehicleMaster = {
     },
 
     shadow: {
-      offsetY: 30,
-      width: 37,
-      height: 18,
+      offsetY: 25,
+      width: 64,
+      height: 36,
 
       horizontal: {
-        width: 72,
-        height: 18,
+        width: 134,
+        height: 36,
       },
     },
 
@@ -174,12 +174,12 @@ export const vehicleMaster = {
 
     shadow: {
       offsetY: 32,
-      width: 45,
-      height: 18,
+      width: 80,
+      height: 36,
 
       horizontal: {
-        width: 62,
-        height: 18,
+        width: 114,
+        height: 36,
       },
     },
 
@@ -204,15 +204,13 @@ export const vehicleMaster = {
     },
 
     shadow: {
-      offsetY: 60,
-      // 正面・背面
-      width: 65,
-      height: 25,
+      offsetY: 62,
+      width: 120,
+      height: 50,
 
-      // 左右
       horizontal: {
-        width: 150,
-        height: 22,
+        width: 300,
+        height: 34,
       },
     },
 
