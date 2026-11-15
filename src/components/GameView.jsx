@@ -78,11 +78,16 @@ import {
 import {
   HiyokoHouse,
   createHiyokoHouse,
-  startHiyokoHouseDoor,
   updateHiyokoHouseDoor,
   drawHiyokoHouse,
   isPointInsideHiyokoHouse,
   startHiyokoHousePounce,
+  updateHiyokoHouseEntry,
+  drawHiyokoHouseEntryButtons,
+  handleHiyokoHouseEntryTap,
+  startHiyokoHouseEvent,
+  finishHiyokoHouseEvent,
+  startHiyokoHouseEnter
 } from "../game/others/hiyokoHouse";
 
 //エフェクト関係者
@@ -94,6 +99,16 @@ import {
   updateVisualEffects,
   drawVisualEffects,
 } from "../game/effects/effect";
+//トランジション関係者
+import {
+  updateTransition,
+  drawTransition,
+  drawLoadingScreen,
+  showLoadingScreen,
+  hideLoadingScreen,
+  startStarTransitionIn,
+  startStarTransitionOut,
+} from "../game/effects/transition";
 
 //電車関係者
 import { Railway } from "../game/constants/railwayConfig";
@@ -203,6 +218,14 @@ function GameView() {
 
   //現在のモード管理人
   const [isHomeMode, setIsHomeMode] = useState(false);  //　false：通常マップ　true：おうちモード
+  const isHomeModeRef = useRef(false);
+
+  useEffect(() => {
+    isHomeModeRef.current = isHomeMode;
+  }, [isHomeMode]);
+
+  const transitionImageRef = useRef("loading01");
+  const [isHomeLoading, setIsHomeLoading] = useState(false);
 
 
   //========のりものの状態管理人たち========
@@ -439,8 +462,16 @@ function GameView() {
     duration: 500,
     startScale: 1,
     targetScale: 1,
-  });
 
+    // カメラ移動用
+    startX: 0,
+    startY: 0,
+    targetX: 0,
+    targetY: 0,
+
+    moveCamera: false,
+    onComplete: null, //ズーム完了通知用
+  });
 
   // ======== システムマネージャーさんたち ========
   //音響担当
@@ -448,6 +479,49 @@ function GameView() {
   if (!soundManagerRef.current) {
     soundManagerRef.current = new SoundManager();
   }
+  // AudioContext再開処理の管理
+  const audioActivationPromiseRef = useRef(
+  /** @type {Promise<void> | null} */(null));
+  const audioReadyRef = useRef(false);
+
+  // AudioContextが必要なときだけ再開・準備する
+  function activateAudioIfNeeded() {
+
+    // すでに準備処理中なら、その処理を共有
+    if (audioActivationPromiseRef.current) {
+      return audioActivationPromiseRef.current;
+    }
+
+    const audioContext =
+      soundManagerRef.current.getAudioContext();
+
+    // 準備済みで、AudioContextも動いているなら何もしない
+    if (
+      audioReadyRef.current &&
+      audioContext.state === "running"
+    ) {
+      return null;
+    }
+
+    // 初回、または停止していた場合は準備する
+    const activationPromise = soundManagerRef.current
+      .resume()
+      .then(() => {
+        audioReadyRef.current = true;
+      })
+      .catch((error) => {
+        audioReadyRef.current = false;
+        console.error("音声の準備に失敗しました", error);
+      })
+      .finally(() => {
+        audioActivationPromiseRef.current = null;
+      });
+
+    audioActivationPromiseRef.current = activationPromise;
+
+    return activationPromise;
+  }
+
   //アニメーション担当
   const animationTimerRef = useRef(0);
 
@@ -886,7 +960,79 @@ function GameView() {
     });
   }
 
+  //=================================
+  //　　　ひよこハウスイベント
+  //=================================
+  // おうちイベントボタンのアニメーション更新係
+  function updateHouseEntryButtons(deltaTime) {
+    const house = hiyokoHouseRef.current.entry;
 
+    if (!house.buttonsVisible) return;
+    if (!house.pressedButton) return;
+
+    house.buttonTimer += deltaTime;
+
+    if (house.buttonTimer >= 0.08) {
+      house.buttonTimer = 0;
+
+      if (house.pressedButton === "enter") {
+        house.enterFrame++;
+
+        if (house.enterFrame >= 4) {
+          house.enterFrame = 0;
+          house.pressedButton = null;
+        }
+      }
+
+      if (house.pressedButton === "cancel") {
+        house.cancelFrame = 1;
+        house.pressedButton = null;
+      }
+    }
+  }
+
+  // おうちイベントボタン描画
+  function drawHouseEntryButtons(ctx) {
+    const house = hiyokoHouseRef.current.entry;
+
+    if (!house.buttonsVisible) return;
+
+    const enterImage = imagesRef.current.houseInButton;
+    const cancelImage = imagesRef.current.houseCancelButton;
+
+    const enter = HOUSE_ENTRY_BUTTON_CONFIG.enter;
+    const cancel = HOUSE_ENTRY_BUTTON_CONFIG.cancel;
+
+    // 入るボタン
+    if (enterImage) {
+      ctx.drawImage(
+        enterImage,
+        house.enterFrame * 192,
+        0,
+        192,
+        192,
+        enter.x,
+        enter.y,
+        enter.width,
+        enter.height
+      );
+    }
+
+    // キャンセルボタン
+    if (cancelImage) {
+      ctx.drawImage(
+        cancelImage,
+        house.cancelFrame * 192,
+        0,
+        192,
+        192,
+        cancel.x,
+        cancel.y,
+        cancel.width,
+        cancel.height
+      );
+    }
+  }
 
   //=================================
   //　　　       入力
@@ -894,6 +1040,14 @@ function GameView() {
 
   //指、置いた。
   function handlePointerDown(event) {
+    //おうちモード中は無効
+    if (isHomeModeRef.current) return;
+    // おうちイベント中はマップ操作禁止
+    if (hiyokoHouseRef.current.entry.active) return;
+
+    // AudioContextを必要な場合だけ再開
+    activateAudioIfNeeded();
+
     // メニュー表示中は、下のマップ操作を一切開始しない
     const menu = vehicleMenuRef.current;
     const menuIsVisible = menu.isOpen || menu.progress > 0;
@@ -1172,6 +1326,10 @@ function GameView() {
 
   //指、動かした。
   function handlePointerMove(event) {
+    //おうちモード中は無効
+    if (isHomeModeRef.current) return;
+    // おうちイベント中はマップ操作禁止
+    if (hiyokoHouseRef.current.entry.active) return;
 
     //ひよこつまみ中 2本目の指でカメラを動かす
     if (event.pointerId === secondaryPointerIdRef.current) {
@@ -1479,6 +1637,10 @@ function GameView() {
 
   //指、離した。（キャンセル含む）
   function handlePointerUp(event) {
+    //おうちモード中は無効
+    if (isHomeModeRef.current) return;
+    // おうちイベント中はマップ操作禁止
+    if (hiyokoHouseRef.current.entry.active) return;
 
     //ひよこつまみ中、2本目の指を離した場合
     if (event.pointerId === secondaryPointerIdRef.current) {
@@ -1729,12 +1891,50 @@ function GameView() {
 
   //タップ
   async function handleClick(event) {
+    //おうちモード中は無効
+    if (isHomeModeRef.current) return;
 
-    //AudioContext起きて！
-    try {
-      await soundManagerRef.current.resume();
-    } catch (error) {
-      console.error("音声の準備に失敗しました", error);
+    //座標チェック（スクリーン座標）
+
+    const x = event.nativeEvent.offsetX / scale;
+    const y = event.nativeEvent.offsetY / scale;
+
+    const house = hiyokoHouseRef.current;
+
+    // おうちイベント中は専用ボタンだけ受け付ける
+    if (house.entry.active) {
+      const pressedButton = handleHiyokoHouseEntryTap(
+        house,
+        x,
+        y
+      );
+
+      const entry = house.entry;
+
+      if (pressedButton === "enter") {
+        entry.pressedButton = "enter";
+        entry.enterAnimation = "pressed";
+        entry.enterFrame = 0;
+        entry.buttonTimer = 0;
+        soundManagerRef.current.play("uiButtonTap");
+      }
+
+      if (pressedButton === "cancel") {
+        entry.pressedButton = "cancel";
+        entry.cancelFrame = 1;
+        entry.cancelTimer = 0;
+        soundManagerRef.current.play("uiButtonTap");
+      }
+
+      // ボタン以外はマップ操作×
+      return;
+    }
+
+    // 音声準備が進行中なら完了を待つ
+    const audioPreparation = audioActivationPromiseRef.current;
+
+    if (audioPreparation) {
+      await audioPreparation;
     }
 
     //2本目以降の指の操作を無効
@@ -1751,11 +1951,6 @@ function GameView() {
       cameraDragRef.current.wasDragging = false;
       return;
     }
-
-
-    //座標チェック（スクリーン座標）
-    const x = event.nativeEvent.offsetX / scale;
-    const y = event.nativeEvent.offsetY / scale;
 
     //世界座標を取得
     const worldPosition = screenToWorld(
@@ -1943,20 +2138,14 @@ function GameView() {
         hiyokoHouseRef.current
       )
     ) {
-      //ひよこがお家にいるかな？
-      if (
-        hiyokoHouseRef.current.hiyokoCount > 0
-      ) {
-        startHiyokoHouseDoor(
-          hiyokoHouseRef.current,
-          now,
-          soundManagerRef.current
-        );
+      startHiyokoHouseEvent(
+        house,
+        cameraRef.current,
+        now,
+        startCameraMoveZoom,
+        soundManagerRef.current
+      );
 
-      } else {
-        // ノック音だけ
-        soundManagerRef.current.play("doorKnock");
-      }
       return;
     }
 
@@ -2290,10 +2479,6 @@ function GameView() {
 
     }
 
-
-
-
-
     //アクション中は移動しないよ！
     const fireFightActionRunning =
       vehicle.type === "fireEngine" &&
@@ -2302,8 +2487,6 @@ function GameView() {
     if (fireFightActionRunning) {
       return;
     }
-
-
 
     // 車が動き始めたら、カメラ中央寄せを解除
     vehicleCameraRef.current.isCentering = false;
@@ -2580,11 +2763,25 @@ function GameView() {
   //描画本部
 
   function draw(ctx, now) {
-    const background = imagesRef.current.background02;
 
     //一回画面をきれいにする。
     ctx.clearRect(0, 0, 1920, 1440);
 
+    // おうちモード中はトランジションだけ描画
+    if (isHomeModeRef.current) {
+      const loadingImage = imagesRef.current[transitionImageRef.current];
+      drawTransition(
+        ctx,
+        loadingImage,
+        imagesRef.current.transitionMaskStar
+      );
+
+      drawLoadingScreen(ctx, loadingImage);
+
+      return;
+    }
+
+    const background = imagesRef.current.background02;
 
     // ワールド部分のズーム開始
     const camera = cameraRef.current;
@@ -2892,13 +3089,16 @@ function GameView() {
       vehicleSelectEffectRef.current
     );
 
-    // 荷下ろし中は車メニューのタブを隠す
+    // 荷下ろし中・おうちイベント中は車メニューのタブを隠す
     const isCarrierUnloading = vehiclesRef.current.some(
       (vehicle) =>
         vehicle.type === "carCarrier" &&
         vehicle.carrierEvent === CarCarrierEvent.UNLOADING
     );
-    if (!isCarrierUnloading) {
+
+    if (!isCarrierUnloading &&
+      !hiyokoHouseRef.current.entry.active
+    ) {
       drawVehicleMenuTab(
         ctx,
         vehicleMenuRef.current,
@@ -2917,6 +3117,22 @@ function GameView() {
       now
     );
 
+    // おうちイベントボタン
+    drawHiyokoHouseEntryButtons(
+      ctx,
+      imagesRef.current,
+      hiyokoHouseRef.current
+    );
+
+    //通常マップ時のトランジション
+    const loadingImage = imagesRef.current[transitionImageRef.current];
+    drawTransition(
+      ctx,
+      loadingImage,
+      imagesRef.current.transitionMaskStar
+    );
+
+    drawLoadingScreen(ctx, loadingImage);
   }
 
 
@@ -3035,11 +3251,71 @@ function GameView() {
       (zoom.targetScale - zoom.startScale) *
       easedProgress;
 
+    // カメラ位置も移動する場合
+    if (zoom.moveCamera) {
+      cameraRef.current.x = zoom.startX + (zoom.targetX - zoom.startX) * easedProgress;
+      cameraRef.current.y = zoom.startY + (zoom.targetY - zoom.startY) * easedProgress;
+    }
+
     if (progress >= 1) {
       cameraRef.current.scale = zoom.targetScale;
+
+      if (zoom.moveCamera) {
+        cameraRef.current.x = zoom.targetX;
+        cameraRef.current.y = zoom.targetY;
+      }
+
       zoom.active = false;
+      zoom.moveCamera = false;
+
+      // 完了通知を取得して、一度だけ実行
+      const onComplete = zoom.onComplete;
+      zoom.onComplete = null;
+
+      onComplete?.();
     }
   }
+
+
+  // 指定座標を中心にズームする係
+  function startCameraMoveZoom(
+    now,
+    targetX,  //ワールド座標
+    targetY,
+    targetScale,
+    duration = 800,
+    onComplete = null
+  ) {
+    const camera = cameraRef.current;
+    const zoom = cameraZoomRef.current;
+
+    // 慣性移動を停止
+    cameraDragRef.current.velocityX = 0;
+    cameraDragRef.current.velocityY = 0;
+
+    // 車の中央寄せを停止
+    vehicleCameraRef.current.isCentering = false;
+
+    // ズーム開始
+    zoom.active = true;
+    zoom.startTime = now;
+    zoom.duration = duration;
+
+    zoom.startScale = camera.scale;
+    zoom.targetScale = targetScale;
+
+    // カメラ移動
+    zoom.startX = camera.x;
+    zoom.startY = camera.y;
+
+    zoom.targetX = targetX - Screen.WIDTH / 2;
+    zoom.targetY = targetY - Screen.HEIGHT / 2;
+
+    zoom.moveCamera = true;
+    // ズーム完了時に呼び出す処理を保存
+    zoom.onComplete = onComplete;
+  }
+
 
   //カメラのズームを戻す係
   function restoreCarCarrierZoom(now) {
@@ -3050,6 +3326,8 @@ function GameView() {
     zoom.duration = 500;
     zoom.startScale = cameraRef.current.scale;
     zoom.targetScale = 1;
+    zoom.moveCamera = false;
+    zoom.onComplete = null;
   }
 
   //=================================
@@ -3057,150 +3335,191 @@ function GameView() {
   //=================================
   function update(now, deltaTime) {
 
-    const eggEvent = eggGameRef.current.event;
+    updateTransition(deltaTime);
 
-    //たまごイベント中？
-    if (eggEvent.active) {
-      eggEvent.effectParticles =
-        updateEggEffectParticles(now, deltaTime, eggEvent.effectParticles);
-    }
-    //通常時
-    else {
+    if (!isHomeModeRef.current) {
 
-      updateCameraInertia();
+      //たまごイベント中？
+      const eggEvent = eggGameRef.current.event;
+      if (eggEvent.active) {
+        eggEvent.effectParticles =
+          updateEggEffectParticles(now, deltaTime, eggEvent.effectParticles);
+      }
+      //通常時
+      else {
 
-      //車が停止したら車を画面中央へ寄せる
-      if (vehicleCameraRef.current.isCentering) {
-        const vehicle = vehiclesRef.current[0];
+        // おうちイベント中以外はカメラを通常更新
+        if (!hiyokoHouseRef.current.entry.active) {
+          updateCameraInertia();
+        }
 
-        if (vehicle && vehicle.state === State.STOP) {
-          const camera = cameraRef.current;
+        if (
+          !hiyokoHouseRef.current.entry.active &&
+          vehicleCameraRef.current.isCentering
+        ) {
 
-          // 車を画面中央に置くためのカメラ座標
-          const targetX = vehicle.position.x - Screen.WIDTH / 2;
-          const targetY = vehicle.position.y - Screen.HEIGHT / 2;
+          const vehicle = vehiclesRef.current[0];
 
-          // 現在位置との差
-          const dx = targetX - camera.x;
-          const dy = targetY - camera.y;
+          if (vehicle && vehicle.state === State.STOP) {
+            const camera = cameraRef.current;
 
-          // 十分近づいたら終了
-          if (Math.abs(dx) < 1 && Math.abs(dy) < 1) {
-            moveCamera(dx, dy);
-            vehicleCameraRef.current.isCentering = false;
+            // 車を画面中央に置くためのカメラ座標
+            const targetX = vehicle.position.x - Screen.WIDTH / 2;
+            const targetY = vehicle.position.y - Screen.HEIGHT / 2;
+
+            // 現在位置との差
+            const dx = targetX - camera.x;
+            const dy = targetY - camera.y;
+
+            // 十分近づいたら終了
+            if (Math.abs(dx) < 1 && Math.abs(dy) < 1) {
+              moveCamera(dx, dy);
+              vehicleCameraRef.current.isCentering = false;
+            } else {
+              // ゆっくり中央へ移動
+              const followSpeed = 3;
+
+              moveCamera(
+                dx * followSpeed * deltaTime,
+                dy * followSpeed * deltaTime
+              );
+            }
           } else {
-            // ゆっくり中央へ移動
-            const followSpeed = 3;
-
-            moveCamera(
-              dx * followSpeed * deltaTime,
-              dy * followSpeed * deltaTime
-            );
+            vehicleCameraRef.current.isCentering = false;
           }
-        } else {
-          vehicleCameraRef.current.isCentering = false;
         }
+
+        // ひよこを摘まんでいる間の端スクロール
+        const npcPointer = npcPointerRef.current;
+        const drag = cameraDragRef.current;
+
+        if (npcPointer.npc && npcPointer.isDragging && (
+          [-3, -2, -1, 1, 2, 3].includes(drag.edgePushX) ||
+          [-3, -2, -1, 1, 2, 3].includes(drag.edgePushY))
+        ) {
+          // 端スクロールの速度（1秒あたりの移動量）
+          const edgeScrollSpeed = 100;
+
+          // 指がある端の方向へカメラを移動
+          moveCamera(
+            drag.edgePushX * edgeScrollSpeed * deltaTime,
+            drag.edgePushY * edgeScrollSpeed * deltaTime
+          );
+
+          // 移動後のカメラに合わせて、ひよこの位置を更新
+          const worldPosition = screenToWorld(
+            npcPointer.lastX,
+            npcPointer.lastY,
+            cameraRef.current
+          );
+
+          updateNPCDrag(
+            npcPointer.npc,
+            worldPosition.x,
+            worldPosition.y,
+            now
+          );
+        }
+
+        updateVehicle(now, deltaTime);
+        // カーキャリアの荷下ろしイベント
+        vehiclesRef.current.forEach((vehicle) => {
+          if (vehicle.type !== "carCarrier") {
+            return;
+          }
+
+          // 更新前のイベント状態を記録
+          const wasUnloading = vehicle.carrierEvent === CarCarrierEvent.UNLOADING;
+
+          updateCarCarrierUnloading(vehicle, now, soundManagerRef.current);
+          updateCarCarrierUpperDeckCars(vehicle);
+
+          // 荷下ろしイベントが終了した瞬間にズームを戻す
+          const finishedUnloading =
+            wasUnloading &&
+            vehicle.carrierEvent === CarCarrierEvent.NONE;
+
+          if (finishedUnloading) {
+            restoreCarCarrierZoom(now);
+          }
+        });
+
+
+        updateNPCs(
+          npcsRef.current,
+          vehiclesRef.current,
+          now,
+          deltaTime,
+          soundManagerRef.current
+        );
+
+        trafficCarsRef.current.forEach((car) => {
+          updateTrafficCar(car, now, deltaTime, soundManagerRef.current);
+        });
+
+        updateHiyokoHouseDoor(
+          hiyokoHouseRef.current,
+          now,
+          soundManagerRef.current
+        );
+        updateVehicleMenu(now, vehicleMenuRef.current);
+        updateCrossing(now, railwayRef.current.crossing);
+        updateTrain(
+          now,
+          deltaTime,
+          railwayRef.current.train,
+          railwayRef.current.crossing,
+          soundManagerRef.current,
+          trainPassengersRef.current
+        );
+
+        visualEffectsRef.current = updateVisualEffects(
+          now,
+          deltaTime,
+          visualEffectsRef.current
+        );
+
+        updateBubbles(now, deltaTime, bubbleGameRef.current);
+        updateMapEggs(eggGameRef.current.mapEggs, now);
       }
 
-      // ひよこを摘まんでいる間の端スクロール
-      const npcPointer = npcPointerRef.current;
-      const drag = cameraDragRef.current;
+      updateCameraZoom(now);
 
-      if (npcPointer.npc && npcPointer.isDragging && (
-        [-3, -2, -1, 1, 2, 3].includes(drag.edgePushX) ||
-        [-3, -2, -1, 1, 2, 3].includes(drag.edgePushY))
-      ) {
-        // 端スクロールの速度（1秒あたりの移動量）
-        const edgeScrollSpeed = 100;
-
-        // 指がある端の方向へカメラを移動
-        moveCamera(
-          drag.edgePushX * edgeScrollSpeed * deltaTime,
-          drag.edgePushY * edgeScrollSpeed * deltaTime
-        );
-
-        // 移動後のカメラに合わせて、ひよこの位置を更新
-        const worldPosition = screenToWorld(
-          npcPointer.lastX,
-          npcPointer.lastY,
-          cameraRef.current
-        );
-
-        updateNPCDrag(
-          npcPointer.npc,
-          worldPosition.x,
-          worldPosition.y,
-          now
-        );
-      }
-
-
-      updateVehicle(now, deltaTime);
-      // カーキャリアの荷下ろしイベント
-      vehiclesRef.current.forEach((vehicle) => {
-        if (vehicle.type !== "carCarrier") {
-          return;
-        }
-
-        // 更新前のイベント状態を記録
-        const wasUnloading = vehicle.carrierEvent === CarCarrierEvent.UNLOADING;
-
-        updateCarCarrierUnloading(vehicle, now, soundManagerRef.current);
-        updateCarCarrierUpperDeckCars(vehicle);
-
-        // 荷下ろしイベントが終了した瞬間にズームを戻す
-        const finishedUnloading =
-          wasUnloading &&
-          vehicle.carrierEvent === CarCarrierEvent.NONE;
-
-        if (finishedUnloading) {
-          restoreCarCarrierZoom(now);
-        }
-      });
-
-
-      updateNPCs(
-        npcsRef.current,
-        vehiclesRef.current,
-        now,
-        deltaTime,
-        soundManagerRef.current
-      );
-
-      trafficCarsRef.current.forEach((car) => {
-        updateTrafficCar(car, now, deltaTime, soundManagerRef.current);
-      });
-
-      updateHiyokoHouseDoor(
+      // おうち入室イベント更新
+      const houseEntryResult = updateHiyokoHouseEntry(
         hiyokoHouseRef.current,
-        now,
-        soundManagerRef.current
+        deltaTime
       );
-      updateVehicleMenu(now, vehicleMenuRef.current);
-      updateCrossing(now, railwayRef.current.crossing);
-      updateTrain(
-        now,
-        deltaTime,
-        railwayRef.current.train,
-        railwayRef.current.crossing,
-        soundManagerRef.current,
-        trainPassengersRef.current
-      );
+      if (houseEntryResult === "enter") {
+        startHiyokoHouseEnter(
+          hiyokoHouseRef.current,
+          () => {
+            // 星形トランジション開始
+            transitionImageRef.current = "loading01";
+            startStarTransitionIn(() => {
+              showLoadingScreen();
+              isHomeModeRef.current = true;
+              setIsHomeMode(true);
+              finishHiyokoHouseEvent(
+                hiyokoHouseRef.current,
+                now,
+                startCameraMoveZoom
+              );
+            });
+          }
+        );
+      }
+      if (houseEntryResult === "cancel") {
+        finishHiyokoHouseEvent(
+          hiyokoHouseRef.current,
+          now,
+          startCameraMoveZoom
+        );
+      }
 
-      visualEffectsRef.current = updateVisualEffects(
-        now,
-        deltaTime,
-        visualEffectsRef.current
-      );
-
-      updateBubbles(now, deltaTime, bubbleGameRef.current);
-      updateMapEggs(eggGameRef.current.mapEggs, now);
     }
 
     const ctx = ctxRef.current;
-
-    updateCameraZoom(now);
-
     if (ctx) {
       draw(ctx, now);
     }
@@ -3266,21 +3585,10 @@ function GameView() {
       "eggEventEffect01", "eggEventEffect02",
 
 
-      "skyNight", "star01", "moon01", "moon02",
-
-      "skyDay", "skyCloudy",
-      "sun01", "sun02", "cloud01", "cloudEffect",
-      "rain01", "rain02",
 
       "houseInButton", "houseCancelButton",
 
-      "houseOutButton",
 
-      "houseFloor01", "houseWall01",
-      "houseWindow01", "houseWindow02", "houseWindow03",
-
-      "windowButton01", "windowButton02", "windowButton03",
-      "dayNightButton"
 
     ];
 
@@ -3308,16 +3616,23 @@ function GameView() {
       const image = new Image();
 
       image.onload = imageLoaded;
-
       image.src = `${import.meta.env.BASE_URL}images/${name}.webp`;
-
       imagesRef.current[name] = image;
       image.onerror = () => {
         console.error("画像読み込み失敗:", image.src);
       };
-
-      image.src = `${import.meta.env.BASE_URL}images/${name}.webp`;
     });
+
+    // スターワイプ用マスク画像
+    const transitionMask = new Image();
+
+    transitionMask.src = `${import.meta.env.BASE_URL}images/transitionMask_star.png`;
+    transitionMask.onload = () => {
+      imagesRef.current.transitionMaskStar = transitionMask;
+    };
+    transitionMask.onerror = () => {
+      console.error("マスク画像の読み込み失敗:", transitionMask.src);
+    };
 
   }, []);
 
@@ -3329,6 +3644,7 @@ function GameView() {
       "select01",
       "menuOpen01",
       "inkPuddle01",
+      "uiButtonTap",
 
       "busHorn", "ambulanceSiren",
       "fireEngineSiren", "fireFightAction01", "fireFightAction02",
@@ -3463,11 +3779,40 @@ function GameView() {
 
         {isHomeMode && (
           <HomeMode
-            onExit={() => setIsHomeMode(false)}
+
+            onExit={() => {
+              // loading02を使う
+              transitionImageRef.current = "loading02";
+
+              // ① おうちを星形で覆う
+              startStarTransitionIn(() => {
+
+                // ② 通常マップへ切り替える
+                showLoadingScreen();
+
+                isHomeModeRef.current = false;
+                setIsHomeMode(false);
+
+                // ③ 星形の穴を開いてマップを見せる
+                startStarTransitionOut(() => {
+                  hideLoadingScreen();
+
+                  // 次の入室に備えて戻す
+                  transitionImageRef.current = "loading01";
+                });
+              });
+            }}
+            onReady={() => {
+              // おうちモードの準備完了
+              startStarTransitionOut(() => {
+                hideLoadingScreen();
+                setIsHomeLoading(false);
+              });
+            }}
             scale={scale}
+            soundManager={soundManagerRef.current}
           />
         )}
-
 
         <canvas
           className="gameCanvas"
@@ -3475,6 +3820,7 @@ function GameView() {
           width={1920}
           height={1440}
           style={{
+            pointerEvents: isHomeMode ? "none" : "auto",
             width: `${1920 * scale}px`,
             height: `${1440 * scale}px`
           }}

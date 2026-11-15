@@ -1,190 +1,280 @@
 import { useEffect, useRef } from "react";
-import * as THREE from "three";
-
-const textureCache = new Map();
-
-async function getCachedTexture(path) {
-  if (!textureCache.has(path)) {
-    const loader = new THREE.TextureLoader();
-
-    const texturePromise = loader.loadAsync(path);
-
-    textureCache.set(path, texturePromise);
-  }
-
-  return textureCache.get(path);
-}
+import {
+  loadHomeImages,
+  loadHomeSounds,
+} from "../homeMode/homeAssets";
+import {
+  createSkyState,
+  updateSky,
+  drawSky
+} from "../homeMode/homeSky";
+import { createHomeScene } from "../homeMode/homeScene";
+import { createHomeUI } from "../homeMode/homeUI";
+import { createHomeLoop } from "../homeMode/homeLoop";
 
 
 
-function HomeMode({ onExit, scale }) {
-  const mountRef = useRef(null);
+//===========================================
+// おうちモード
+//===========================================
+
+function HomeMode({ onExit, onReady, scale, soundManager }) {
+
+  // 3つの描画レイヤー
+  const skyCanvasRef = useRef(null);  //空　2D（背景）
+  const mountRef = useRef(null);  //家 3D
+  const uiCanvasRef = useRef(null); //UI 2D
+
+
+  // おうちモードの状態
+  const homeStateRef = useRef({
+    scene: "room",  //"room"：おうちの中  "sky"：空イベント中
+    event: null,
+    windowShape: "square",
+  });
+
+  // 空の状態
+  const skyStateRef = useRef(createSkyState());
+
+  const containerRef = useRef(null);
+
+
+  //===========================================
+  // 初期化・終了処理
+  //===========================================
 
   useEffect(() => {
     let cancelled = false;
-    let renderer;
-    let animationFrameId;
 
+    // 各部署の管理用
+    let homeScene = null;
+    let homeLoop = null;
+    let homeUI = null;
+
+
+    //===========================================
+    // 初期化
+    //===========================================
     async function initialize() {
-      const [wallTexture, floorTexture] = await Promise.all([
-        getCachedTexture(
-          `${import.meta.env.BASE_URL}images/houseWall02.webp`
-        ),
-        getCachedTexture(
-          `${import.meta.env.BASE_URL}images/houseFloor01.webp`
-        ),
+
+      //画像・効果音読み込み
+      const [homeImages] = await Promise.all([
+        loadHomeImages(),
+        loadHomeSounds(soundManager),
       ]);
 
       // 読み込み中に画面を離れていたら、描画を開始しない
       if (cancelled || !mountRef.current) return;
 
-      wallTexture.colorSpace = THREE.SRGBColorSpace;
-      floorTexture.colorSpace = THREE.SRGBColorSpace;
+      //Canvas描画コンテキストをもらってくる
+      const skyCanvas = skyCanvasRef.current;
+      const uiCanvas = uiCanvasRef.current;
 
-      // 3D空間
-      const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0xffffff);
+      const skyCtx = skyCanvas.getContext("2d");
+      const uiCtx = uiCanvas.getContext("2d");
 
-      // カメラ：4:3の画面
-      const camera = new THREE.PerspectiveCamera(
-        35, //視野角
-        1920 / 1440,
-        1,
-        10000
+      // UIを作成
+      homeUI = createHomeUI(
+        uiCanvas,
+        uiCtx,
+        homeImages,
+        {
+          // 窓の形状変更
+          onShapeChange: (shape) => {
+            homeStateRef.current.windowShape = shape;
+            homeScene?.setWindowShape(shape);
+          },
+
+          // 昼夜変更
+          onDayNightChange: (mode) => {
+            skyStateRef.current.mode = mode;
+            soundManager.play("dayNightSwitch");  //きりかえ音
+          },
+          // 共通ボタン押下音
+          onButtonPress: () => {
+            soundManager.play("uiButtonTap");
+          },
+
+          // おうちから退出
+          onExit,
+        }
       );
 
-      // 描画装置
-      renderer = new THREE.WebGLRenderer({
-        antialias: true,
-      });
-
-      renderer.setSize(1920, 1440);
-      renderer.setPixelRatio(1);
-
-      renderer.domElement.style.width = "100%";
-      renderer.domElement.style.height = "100%";
-      renderer.domElement.style.display = "block";
-
-      mountRef.current.appendChild(renderer.domElement);
-
-      // 壁：XY平面
-      const wallGeometry = new THREE.PlaneGeometry(
-        3840,
-        1440
+      //3Dのお部屋を作る
+      homeScene = createHomeScene(
+        mountRef.current,
+        homeImages,
+        () => {
+          homeStateRef.current.event = "window";
+          homeUI.setActiveEvent("window");
+          //家具選択音
+          soundManager.play("furnitureSelect01");
+        },
+        // ズーム完了
+        () => {
+          homeUI.show();
+        }
       );
 
-      const wallMaterial = new THREE.MeshBasicMaterial({
-        map: wallTexture,
-      });
+      //===========================================
+      // 入力の振り分け
+      //===========================================
 
-      const wall = new THREE.Mesh(
-        wallGeometry,
-        wallMaterial
-      );
+      function handlePointerDown(event) {
+        // ① まずUIに渡す
+        const uiHandled = homeUI.handlePointerDown(event);
+        if (uiHandled) return;
 
-      wall.position.set(0, 720, 0);
-      scene.add(wall);
-
-      // 床：XZ平面
-      const floorGeometry = new THREE.PlaneGeometry(
-        3840,
-        1000
-      );
-
-      const floorMaterial = new THREE.MeshBasicMaterial({
-        map: floorTexture,
-      });
-
-      const floor = new THREE.Mesh(
-        floorGeometry,
-        floorMaterial
-      );
-
-      floor.rotation.x = -Math.PI / 2;
-      floor.position.set(0, 0, 500);
-      scene.add(floor);
-
-      // カメラ位置と向き
-      camera.position.set(0, 600, 2400);
-      camera.lookAt(0, 600, 0);
-
-      // 描画ループ
-      function render() {
-        if (cancelled) return;
-
-        renderer.render(scene, camera);
-        animationFrameId = requestAnimationFrame(render);
+        // ② UIでなければ3Dのお部屋に渡す
+        homeScene.handlePointerDown(event);
       }
 
-      render();
+      // おうち全体で入力を受け取る
+      const homeContainer = containerRef.current;
 
-      // 終了時に片付けるための参照を保存
-      mountRef.current.userData.cleanup = () => {
-        cancelAnimationFrame(animationFrameId);
+      homeContainer.addEventListener(
+        "pointerdown",
+        handlePointerDown
+      );
 
-        wallGeometry.dispose();
-        wallMaterial.dispose();
+      //===========================================
+      // 更新処理
+      //===========================================
 
-        floorGeometry.dispose();
-        floorMaterial.dispose();
-      };
+      //-------------
+      //おうち監督
+      //-------------
+      function updateHome(now, deltaTime) {
+        // 空の更新
+        updateSky(
+          skyStateRef.current,
+          now,
+          deltaTime
+        );
+
+        // お部屋の更新
+        homeScene.updateRoom(
+          now,
+          deltaTime
+        );
+
+        // おうちイベントの更新
+        homeScene.updateHomeEvent(
+          now,
+          deltaTime
+        );
+
+        // UIのアニメーション更新
+        homeUI.update(deltaTime);
+      }
+
+      //-----------
+      //描画監督
+      //-----------
+      function drawHome() {
+        // ① 背景の空
+        drawSky(
+          skyCtx,
+          skyStateRef.current,
+          homeImages
+        );
+
+        // ② 3Dのおうち
+        homeScene.renderer.render(
+          homeScene.scene,
+          homeScene.camera
+        );
+
+        // ③ UI
+        homeUI.draw();
+      }
+
+
+      //===========================================
+      // ゲームループ開始
+      //===========================================
+
+      homeLoop = createHomeLoop({
+        update: updateHome,
+        draw: drawHome,
+      });
+
+      homeLoop.start();
+      onReady?.();
     }
 
+
+
+    //===========================================
+    // 初期化実行
+    //===========================================
     initialize().catch((error) => {
       if (!cancelled) {
         console.error("おうちの初期化に失敗しました", error);
       }
     });
 
+
+    //===========================================
+    // 終了・お片付け
+    //===========================================
     return () => {
       cancelled = true;
-      cancelAnimationFrame(animationFrameId);
 
-      if (mountRef.current) {
-        mountRef.current.userData.cleanup?.();
-        delete mountRef.current.userData.cleanup;
-      }
+      // ゲームループ停止
+      homeLoop?.stop();
 
-      renderer?.dispose();
-      renderer?.domElement.remove();
+      // 入力イベントを解除
+      containerRef.current?.removeEventListener(
+        "pointerdown",
+        handlePointerDown
+      );
+      // UIを片付ける
+      homeUI?.dispose();
+      // 3Dのお部屋を片付ける
+      homeScene?.dispose();
     };
+
   }, []);
+
+
+
+  //===========================================
+  // 画面表示
+  //===========================================
 
   return (
     <div
+      ref={containerRef}
+      className="home-container"
       style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
         width: `${1920 * scale}px`,
         height: `${1440 * scale}px`,
-        overflow: "hidden",
-        background: "#ffffff",
       }}
+
     >
-      <div
-        ref={mountRef}
-        style={{
-          width: "100%",
-          height: "100%",
-        }}
+
+      {/* ① 背景：2Dの空 */}
+      <canvas
+        ref={skyCanvasRef}
+        className="home-sky-layer"
+        width={1920}
+        height={1440}
       />
 
-      <button
-        type="button"
-        onClick={onExit}
-        style={{
-          position: "absolute",
-          top: 20 * scale,
-          left: 20 * scale,
-          zIndex: 10,
-          padding: "5px 5px",
-          fontSize: 30 * scale,
-          cursor: "pointer",
-        }}
-      >
-        ← マップへ戻る
-      </button>
+      {/* ② 中間：3Dのおうち */}
+      <div
+        ref={mountRef}
+        className="home-3d-layer"
+      />
+
+      {/* ③ 最前面：2D UI */}
+      <canvas
+        ref={uiCanvasRef}
+        className="home-ui-layer"
+        width={1920}
+        height={1440}
+      />
     </div>
   );
 }
